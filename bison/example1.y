@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
+#include <cstring>
+#include <math.h>
 #include <map>
 std::map<std::string, double> vars;
 extern int yylex();
@@ -15,7 +17,7 @@ int yyparse();
 	std::string* str_val;
 };
 
-%token <int_token>	EQUALS MINUS PLUS ASTERISK FSLASH LPAREN RPAREN SEMICOLON PRINT QUIT QMARK COLON
+%token <int_token>	EQUALS MINUS PLUS ASTERISK FSLASH LPAREN RPAREN SEMICOLON QMARK COLON
 %token <str_val>	VARIABLE
 %token <double_val>	NUMBER
 
@@ -25,34 +27,40 @@ int yyparse();
 %type <double_val>	expresson_level1;
 %type <double_val>	expresson_level2;
 %type <double_val>	expresson_level3;
+%type <double_val>	function_call_expression;
 
 %start grammar
 
 %%
 
 grammar : expressons;
-expressons : | expressons base_expressionlist SEMICOLON;
+expressons : | expressons expresson SEMICOLON;
 
-base_expressionlist : expresson | print_expression | quit_expression;
 
-quit_expression : QUIT { exit(0); };
-print_expression : PRINT expresson { printf("%f\n", $2); };
+function_call_expression : 
+	VARIABLE LPAREN expresson RPAREN {
+		if(*$1 == "sqr") { $$ = $3 * $3; }
+		else if(*$1 == "sqrt") { $$ = sqrt($3); }
+		else if(*$1 == "print") { printf("%f\n", $3); $$ = 0;}
+		else if(*$1 == "quit") 	{ if($3) exit(0); $$ = $3; }
+		else $$ = 0;
+	};
 
 expresson : 
-		VARIABLE EQUALS expresson_level0							{ vars[*$1] = $3; $$ = vars[*$1]; }
-	|	expresson_level0;
+		VARIABLE EQUALS expresson_level0			{ vars[*$1] = $3; $$ = vars[*$1]; }
+	|	expresson_level0
 	;
 
 expresson_level0 : 
 		
 		expresson_level0 QMARK expresson_level1 COLON expresson_level1		{ if($1) $$ = $3; else $$ = $5; }
-	|	expresson_level1;
+	|	expresson_level1
+	;
 	
 expresson_level1 : 
-			
 		expresson_level1 PLUS expresson_level2				{ $$ = $1 + $3; }
 	|	expresson_level1 MINUS expresson_level2				{ $$ = $1 - $3; }
-	|	expresson_level2;
+	|	expresson_level2
 	;
 	
 expresson_level2 : 
@@ -64,9 +72,10 @@ expresson_level2 :
 		
 expresson_level3 :
 
-			NUMBER							{ $$ = $1; }
-		|	VARIABLE						{ $$ = vars[*$1]; }
-		|	LPAREN expresson RPAREN 		{ $$ = $2; }
-		;
+		NUMBER							{ $$ = $1; }
+	|	VARIABLE						{ $$ = vars[*$1]; }
+	|	LPAREN expresson RPAREN 		{ $$ = $2; }
+	|	function_call_expression
+	;
 
 %%

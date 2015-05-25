@@ -71,10 +71,8 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <PreBuildEvent>
-      <Command>cd src
-win_flex.exe --noline --wincompat --outfile=lang.lex.yy.cpp lang.l
-win_bison.exe lang.y --define=lang.tab.h --output=lang.tab.cpp
-cd ..</Command>
+      <Command>
+      </Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -94,10 +92,8 @@ cd ..</Command>
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
     <PreBuildEvent>
-      <Command>cd src
-win_flex.exe --noline --wincompat --outfile=lang.lex.yy.cpp lang.l
-win_bison.exe lang.y --define=lang.tab.h --output=lang.tab.cpp
-cd ..</Command>
+      <Command>
+      </Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

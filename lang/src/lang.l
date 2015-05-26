@@ -16,8 +16,6 @@ int kk_parse_cstring(const char* str) {
 
 %%
 
-[//].*[\n]												;
-[/*].*[*/]												;
 [ \t\n]													;
 "if"													return IF;
 "else"													return ELSE;

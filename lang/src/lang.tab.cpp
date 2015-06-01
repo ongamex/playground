@@ -1239,25 +1239,25 @@ yyreduce:
     {
         case 3:
 #line 45 "lang.y" /* yacc.c:1646  */
-    { (yyval.node) = g_ast.add(new Node(NT_Type, "void")); }
+    { (yyval.node) = ast->add(new Node(NT_Type, "void")); }
 #line 1244 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 4:
 #line 46 "lang.y" /* yacc.c:1646  */
-    { (yyval.node) = g_ast.add(new Node(NT_Type, "int")); }
+    { (yyval.node) = ast->add(new Node(NT_Type, "int")); }
 #line 1250 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 5:
 #line 47 "lang.y" /* yacc.c:1646  */
-    { (yyval.node) = g_ast.add(new Node(NT_Type, "float")); }
+    { (yyval.node) = ast->add(new Node(NT_Type, "float")); }
 #line 1256 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 6:
 #line 51 "lang.y" /* yacc.c:1646  */
-    { (yyval.node) = g_ast.add(new Node(NT_VarInit, (yyvsp[0].str_val)->c_str())); }
+    { (yyval.node) = ast->add(new Node(NT_VarInit, (yyvsp[0].str_val)->c_str())); }
 #line 1262 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
@@ -1275,7 +1275,7 @@ yyreduce:
 
   case 9:
 #line 57 "lang.y" /* yacc.c:1646  */
-    { (yyval.node) = g_ast.add(new Node(NT_NtList, {(yyvsp[-2].node), (yyvsp[0].node)})); }
+    { (yyval.node) = ast->add(new Node(NT_NtList, {(yyvsp[-2].node), (yyvsp[0].node)})); }
 #line 1280 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
@@ -1291,7 +1291,7 @@ yyreduce:
 
   case 11:
 #line 65 "lang.y" /* yacc.c:1646  */
-    { (yyval.node) = g_ast.add(new Node(NT_VarDecl, {(yyvsp[-2].node), (yyvsp[-1].node)}));; }
+    { (yyval.node) = ast->add(new Node(NT_VarDecl, {(yyvsp[-2].node), (yyvsp[-1].node)}));; }
 #line 1296 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
@@ -1309,13 +1309,13 @@ yyreduce:
 
   case 14:
 #line 72 "lang.y" /* yacc.c:1646  */
-    { (yyval.node) = g_ast.add(new Node(NT_While, {(yyvsp[-2].node), (yyvsp[0].node)})); }
+    { (yyval.node) = ast->add(new Node(NT_While, {(yyvsp[-2].node), (yyvsp[0].node)})); }
 #line 1314 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 15:
 #line 73 "lang.y" /* yacc.c:1646  */
-    { (yyval.node) = g_ast.add(new Node(NT_If, {(yyvsp[-2].node), (yyvsp[0].node)})); }
+    { (yyval.node) = ast->add(new Node(NT_If, {(yyvsp[-2].node), (yyvsp[0].node)})); }
 #line 1320 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
@@ -1327,7 +1327,7 @@ yyreduce:
 
   case 17:
 #line 78 "lang.y" /* yacc.c:1646  */
-    { (yyval.node) = g_ast.add(new Node(NT_NtList, {(yyvsp[0].node)})); }
+    { (yyval.node) = ast->add(new Node(NT_NtList, {(yyvsp[0].node)})); }
 #line 1332 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
@@ -1343,8 +1343,8 @@ yyreduce:
   case 19:
 #line 86 "lang.y" /* yacc.c:1646  */
     { 
-			Node* ident = (yyval.node) = g_ast.add(new Node(NT_Identifier, (yyvsp[-2].str_val)->c_str()));
-			(yyval.node) = g_ast.add(new Node(NT_Assign, {ident, (yyvsp[0].node)})); 
+			Node* ident = (yyval.node) = ast->add(new Node(NT_Identifier, (yyvsp[-2].str_val)->c_str()));
+			(yyval.node) = ast->add(new Node(NT_Assign, {ident, (yyvsp[0].node)})); 
 		}
 #line 1350 "lang.tab.cpp" /* yacc.c:1646  */
     break;
@@ -1357,37 +1357,37 @@ yyreduce:
 
   case 21:
 #line 96 "lang.y" /* yacc.c:1646  */
-    { (yyval.node) = g_ast.add(new Node(NT_Identifier, (yyvsp[0].str_val)->c_str())); }
+    { (yyval.node) = ast->add(new Node(NT_Identifier, (yyvsp[0].str_val)->c_str())); }
 #line 1362 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 22:
 #line 97 "lang.y" /* yacc.c:1646  */
-    { (yyval.node) = g_ast.add(new Node(NT_Add, {(yyvsp[-2].node), (yyvsp[0].node)})); }
+    { (yyval.node) = ast->add(new Node(NT_Add, {(yyvsp[-2].node), (yyvsp[0].node)})); }
 #line 1368 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 23:
 #line 98 "lang.y" /* yacc.c:1646  */
-    { (yyval.node) = g_ast.add(new Node(NT_Sub, {(yyvsp[-2].node), (yyvsp[0].node)})); }
+    { (yyval.node) = ast->add(new Node(NT_Sub, {(yyvsp[-2].node), (yyvsp[0].node)})); }
 #line 1374 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 24:
 #line 99 "lang.y" /* yacc.c:1646  */
-    { (yyval.node) = g_ast.add(new Node(NT_Mul, {(yyvsp[-2].node), (yyvsp[0].node)})); }
+    { (yyval.node) = ast->add(new Node(NT_Mul, {(yyvsp[-2].node), (yyvsp[0].node)})); }
 #line 1380 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 25:
 #line 100 "lang.y" /* yacc.c:1646  */
-    { (yyval.node) = g_ast.add(new Node(NT_Div, {(yyvsp[-2].node), (yyvsp[0].node)})); }
+    { (yyval.node) = ast->add(new Node(NT_Div, {(yyvsp[-2].node), (yyvsp[0].node)})); }
 #line 1386 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 26:
 #line 101 "lang.y" /* yacc.c:1646  */
-    { (yyval.node) = g_ast.add(new Node(NT_Num, (yyvsp[0].double_val))); }
+    { (yyval.node) = ast->add(new Node(NT_Num, (yyvsp[0].double_val))); }
 #line 1392 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 

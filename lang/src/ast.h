@@ -98,5 +98,3 @@ struct Ast
 
 	std::vector<Node*> nodes;
 };
-
-extern Ast g_ast;

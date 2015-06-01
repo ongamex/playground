@@ -1,17 +1,14 @@
+%option reentrant bison-bridge 
+
 %{
 #include <stdio.h>
 #include <string>
 #include "ast.h"
 #include "lang.tab.h"
-void yyerror(char*);
-int yyparse();
-int kk_parse_cstring(const char* str) {
-	YY_BUFFER_STATE my_string_buffer = yy_scan_string(str); 
-	yy_switch_to_buffer( my_string_buffer ); // switch flex to the buffer we just created
-	yyparse(); 
-	yy_delete_buffer(my_string_buffer );
-	return 5; // 3ds max style
-}
+
+#include "lang.yystype.h"
+
+void yyerror (yyscan_t yyscanner, char const *msg);
 %}
 
 %%
@@ -23,8 +20,8 @@ int kk_parse_cstring(const char* str) {
 "void"													return VOID;
 "int"													return INT;
 "float"													return FLOAT;
-[_a-zA-Z][_a-zA-z0-9]*									{ yylval.str_val = new std::string(yytext); return IDENTIFIER;}
-[0-9][0-9]*(\.[0-9]+)?([eE][0-9][0-9]*)?				{ yylval.double_val = atof(yytext); return NUMBER;}
+[_a-zA-Z][_a-zA-z0-9]*									{ yylval->str_val = new std::string(yytext); return IDENTIFIER;}
+[0-9][0-9]*(\.[0-9]+)?([eE][0-9][0-9]*)?				{ yylval->double_val = atof(yytext); return NUMBER;}
 "="														return EQUALS;
 "+"														return PLUS;
 "-"														return MINUS;
@@ -39,5 +36,23 @@ int kk_parse_cstring(const char* str) {
 
 %%
 
-void yyerror(char* str) { printf("error: %s\n", str); }
-int yywrap() { return 0; }
+int yywrap(yyscan_t yyscanner)
+{
+    return 1;
+}
+	//The function that knows how to parse the language.
+bool LangParseExpression(const std::string& inp, Ast* ast)
+{
+    yyscan_t myscanner;
+    yylex_init(&myscanner);
+    struct yyguts_t * yyg = (struct yyguts_t*)myscanner;
+
+    yy_delete_buffer(YY_CURRENT_BUFFER,myscanner);
+
+    /*Copy string into new buffer and Switch buffers*/
+    yy_scan_string(inp.c_str(), myscanner);
+
+    bool nasi = yyparse(myscanner, ast);
+    yylex_destroy(myscanner);
+    return nasi;
+}

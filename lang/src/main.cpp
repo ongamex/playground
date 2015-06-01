@@ -1,8 +1,6 @@
 #include <iostream>
 
 #include "ast.h"
-#include "lang.tab.h"
-
 Ast g_ast;
 
 int kk_parse_cstring(const char* str);
@@ -61,16 +59,13 @@ private :
 
 struct Foo { int x = 1131; };
 
+bool LangParseExpression(const std::string& inp, Ast* ast);
+
 int main()
 {
-	int sz = sizeof(Variant<sizeof(Foo)>); // 5 + 4
-	Variant<sizeof(Foo)> var;
-	auto f = var.SetVariant<Foo>();
-	
+	void* p;
 
-	yyparse();
-
-	//kk_parse_cstring("if(1) { 5; }\n\0\0");
+	LangParseExpression("if(1)x=10;", &g_ast);
 
 	g_ast.nodes.back()->printMe(00);
 

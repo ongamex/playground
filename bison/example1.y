@@ -1,59 +1,54 @@
-%{
-#include <stdio.h>
-#include <stdlib.h>
-#include <string>
-#include <cstring>
-#include <math.h>
-#include <map>
-std::map<std::string, double> vars;
-extern int yylex();
-extern void yyerror(char*);
-int yyparse();
-%}
 
-%union{
-	int int_token;
-	double double_val;
-	std::string* str_val;
-};
+%define api.pure
+%lex-param   { yyscan_t scanner }
+%parse-param { yyscan_t scanner }
+%parse-param { void *scanner }
 
-%token <int_token>	EQUALS LPAREN RPAREN SEMICOLON QMARK COLON
-%token <str_val>	VARIABLE
-%token <double_val>	NUMBER
+%code requires {
+ 
+#ifndef YY_TYPEDEF_YY_SCANNER_T
+#define YY_TYPEDEF_YY_SCANNER_T
+typedef void* yyscan_t;
+#endif
+#include "lexer.h"
+}
 
-%left MINUS PLUS 
-%left ASTERISK FSLASH
+%union {
+  int value; // or whatever else here
+}
 
-
-
-%type <double_val>	expresson;
-%type <double_val>	function_call_expression;
-
-%start grammar
+%token LPAREN
+%token RPAREN
 
 %%
 
-grammar : expressons;
-expressons : | expressons function_call_expression SEMICOLON;
+document
+    : exprs
+
+exprs
+    : 
+    | expr exprs
+
+expr
+    : parens
+
+parens
+    : LPAREN exprs RPAREN
 
 
-function_call_expression : 
-	VARIABLE LPAREN expresson RPAREN {
-		if(*$1 == "sqr") { $$ = $3 * $3; }
-		else if(*$1 == "sqrt") { $$ = sqrt($3); }
-		else if(*$1 == "print") { printf("%f\n", $3); $$ = 0;}
-		else if(*$1 == "quit") 	{ if($3) exit(0); $$ = $3; }
-		else $$ = 0;
-	};
-
-expresson : 
-		NUMBER								{ $$ = $1; }
-	|	MINUS expresson						{ $$ = -$2; }
-	|	expresson PLUS expresson			{ $$ = $1 + $3; }
-	|	expresson MINUS expresson			{ $$ = $1 - $3; }
-	|	expresson ASTERISK expresson		{ $$ = $1 * $3; }
-	|	expresson FSLASH expresson			{ $$ = $1 / $3; }
-
-	;
-		
 %%
+
+int
+yyerror(YYLTYPE *locp, char *msg) {
+  if (locp) {
+    fprintf(stderr, "parse error: %s (:%d.%d -> :%d.%d)\n",
+                    msg,
+                    locp->first_line, locp->first_column,
+                    locp->last_line,  locp->last_column
+    );
+    /* todo: add some fancy ^^^^^ error handling here */
+  } else {
+    fprintf(stderr, "parse error: %s\n", msg);
+  }
+  return (0);
+}

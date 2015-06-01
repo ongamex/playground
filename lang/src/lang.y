@@ -1,22 +1,23 @@
+%define api.pure full
+%lex-param {yyscan_t scanner}
+%parse-param {yyscan_t scanner}
+%parse-param {Ast* ast}
+
 %{
+
 #include <string>
 #include <cstring>
 #include <math.h>
 #include <map>
-
 #include "ast.h"
+#include "lang.yystype.h"
 
-extern int yylex();
-extern void yyerror(char*);
-int yyparse();
+typedef void* yyscan_t;
+void yyerror (yyscan_t yyscanner, char const *msg);
+void yyerror (yyscan_t yyscanner, Ast* ast, char const *msg);
+int yylex(YYSTYPE *yylval_param, yyscan_t yyscanner);
+bool parseExpression(const std::string& inp);
 %}
-
-%union{
-	struct Node* node;
-	std::string* str_val;
-	double double_val;
-	struct {} no_type;
-};
 
 %token <no_type>		EQUALS MINUS PLUS ASTERISK FSLASH 
 %token <no_type>		VOID INT FLOAT
@@ -102,3 +103,11 @@ expression :
 
 
 %%
+
+void yyerror (yyscan_t yyscanner, char const *msg){
+    fprintf(stderr, "%s\n", msg);
+}
+
+void yyerror (yyscan_t yyscanner, Ast* ast, char const *msg) {
+	yyerror(yyscanner, msg);
+}

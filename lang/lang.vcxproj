@@ -18,6 +18,7 @@
   <ItemGroup>
     <ClInclude Include="src\ast.h" />
     <ClInclude Include="src\lang.tab.h" />
+    <ClInclude Include="src\lang.yystype.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{46F96A3D-E5D8-4427-B031-25F8C2D8BAF1}</ProjectGuid>

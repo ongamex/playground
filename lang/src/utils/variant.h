@@ -14,7 +14,7 @@ struct Variant
 	}
 
 	template<typename T>
-	T* SetVariant()
+	T* ConstructAs()
 	{
 		static_assert(sizeof(T) <= Nbytes, "The preallocated buffer isn't large enough");
 
@@ -26,6 +26,8 @@ struct Variant
 
 		return (T*) object;
 	}
+	template<typename T>
+	T& As { return *((T*) object); }
 
 private :
 

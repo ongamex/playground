@@ -3,6 +3,9 @@
 #include <iostream>
 #include <vector>
 
+#include "utils/variant.h"
+
+#if 0
 enum NodeType
 {
 	NT_None,
@@ -10,6 +13,7 @@ enum NodeType
 	NT_Num,
 	NT_Var,
 
+	// expressions
 	NT_Add,
 	NT_Sub,
 	NT_Mul,
@@ -88,6 +92,49 @@ struct Node
 	}
 
 };
+#endif
+
+enum NodeType
+{
+	NT_None,
+
+	NT_NumFloat,
+	NT_Var,
+
+	// expressions
+	NT_Add,
+	NT_Sub,
+	NT_Mul,
+	NT_Div,
+	NT_Assign,
+
+	NT_If,
+	NT_While,
+
+	NT_Type,
+	NT_Identifier,
+	NT_VarInit,
+	
+	NT_VarDecl,
+
+	NT_NtList, // a list of nodes
+};
+
+struct Node
+{
+	Node() {}
+
+	template<typename T>
+	Node(const NodeType& type, const T& t) :
+		type(type)
+	{
+		data.ConstructAs<T>();
+		data.As<T>() = t;
+	}
+
+	NodeType type = NT_None;
+	Variant<100> data;
+};
 
 struct Ast
 {
@@ -97,4 +144,51 @@ struct Ast
 	}
 
 	std::vector<Node*> nodes;
+};
+
+//-------------------------------------------------------------------------
+//
+//-------------------------------------------------------------------------
+struct ExprCommon // aka expr (op) expr
+{
+	char op; // + - * / = ...
+	struct Node *left, *right;
+};
+
+struct ExprVar
+{
+	struct Node* exrp;
+};
+
+struct Expr
+{
+	char sign = '+'; // sign of the expression +/-
+	union {
+		ExprCommon exprCommon;
+		ExprVar exprVar;
+	};
+};
+
+//-------------------------------------------------------------------------
+//
+//-------------------------------------------------------------------------
+struct StmtIf
+{
+	Node* exrp = nullptr;
+	Node* trueStmt = nullptr;
+	Node* falseStmt = nullptr; // optional
+};
+
+struct StmtWhile
+{
+	Node* exrp = nullptr;
+	Node* bodyStmt = nullptr;
+};
+
+//-------------------------------------------------------------------------
+//
+//-------------------------------------------------------------------------
+struct Ident
+{
+	std::string ident;
 };

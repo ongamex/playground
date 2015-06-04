@@ -2,12 +2,16 @@
 
 #include "ast.h"
 
-union LangYYSTYPE
+struct LangYYSTYPE
 {
-	struct Node* node;
-	std::string* str_val;
-	double double_val;
-	struct {} no_type;
+	std::string str_val;
+
+	union 
+	{
+		struct Node* node;
+		float float_val;
+		struct {} no_type;
+	};
 };
 
 #define YYSTYPE LangYYSTYPE

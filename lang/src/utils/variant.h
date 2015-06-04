@@ -26,8 +26,9 @@ struct Variant
 
 		return (T*) object;
 	}
+
 	template<typename T>
-	T& As { return *((T*) object); }
+	T& As() { return *((T*) object); }
 
 private :
 

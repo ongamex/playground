@@ -17,11 +17,8 @@ void yyerror (yyscan_t yyscanner, char const *msg);
 "if"													return IF;
 "else"													return ELSE;
 "while"													return WHILE;
-"void"													return VOID;
-"int"													return INT;
-"float"													return FLOAT;
-[_a-zA-Z][_a-zA-z0-9]*									{ yylval->str_val = new std::string(yytext); return IDENTIFIER;}
-[0-9][0-9]*(\.[0-9]+)?([eE][0-9][0-9]*)?				{ yylval->double_val = atof(yytext); return NUMBER;}
+[_a-zA-Z][_a-zA-z0-9]*									{ yylval->str_val = std::string(yytext); return IDENTIFIER;}
+[0-9][0-9]*(\.[0-9]+)?([eE][0-9][0-9]*)?				{ yylval->float_val = atof(yytext); return NUMBER;}
 "="														return EQUALS;
 "+"														return PLUS;
 "-"														return MINUS;

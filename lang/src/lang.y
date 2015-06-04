@@ -20,20 +20,18 @@ bool parseExpression(const std::string& inp);
 %}
 
 %token <no_type>		EQUALS MINUS PLUS ASTERISK FSLASH 
-%token <no_type>		VOID INT FLOAT
 %token <no_type>		LPAREN RPAREN SEMICOLON COMMA BLOCK_BEGIN BLOCK_END
 %token <no_type>		IF ELSE WHILE
 %token <str_val>		IDENTIFIER
-%token <double_val>		NUMBER
+%token <float_val>		NUMBER
 
 %left PLUS MINUS
 %left ASTERISK FSLASH
 
 %type <node>	expression
-%type <node>	vardecl_var vardecl_var_list vardecl assign_expression
+%type <node>	vardecl_var vardecl_var_list vardecl assign_statement
 %type <node>	statement
 %type <node>	statement_list
-%type <node>	type
 
 %start grammar
 
@@ -41,51 +39,45 @@ bool parseExpression(const std::string& inp);
 
 grammar : statement_list;
 
-type : 
-		VOID 	{ $$ = ast->add(new Node(NT_Type, "void")); }
-	| 	INT		{ $$ = ast->add(new Node(NT_Type, "int")); }
-	|	FLOAT	{ $$ = ast->add(new Node(NT_Type, "float")); }
-	;
 
 vardecl_var : 	
-		IDENTIFIER { $$ = ast->add(new Node(NT_VarInit, $1->c_str())); }
+		IDENTIFIER { $$ = ast->push<Ident>({$1.c_str()}); }
 	;
 
 vardecl_var_list : 
-		vardecl_var { $$ = $1; }
-	|	vardecl_var EQUALS expression { $$ = $1; $1->nodes.push_back($3); }
-	|	vardecl_var_list COMMA vardecl_var { $$ = ast->add(new Node(NT_NtList, {$1, $3})); }
+		vardecl_var { $$ = ast->push<VarDecl>({"unk", {$1}, {nullptr}}); } // unk used for unknown
+	|	vardecl_var EQUALS expression { $$ = ast->push<VarDecl>({"unk", {$1}, {$3}}); } // unk used for unknown
+	|	vardecl_var_list COMMA vardecl_var { $$->As<VarDecl>().ident.push_back($3);	}
 	|	vardecl_var_list COMMA vardecl_var EQUALS expression { 
 			$$ = $1; 
-			$1->nodes.push_back($3); 
-			$3->nodes.push_back($5); 
+			$$->As<VarDecl>().ident.push_back($3);
+			$$->As<VarDecl>().expr.push_back($5);
 		}
 
 vardecl :
-		type vardecl_var_list SEMICOLON	{ $$ = ast->add(new Node(NT_VarDecl, {$1, $2}));; }
+		IDENTIFIER vardecl_var_list SEMICOLON	{ $2->As<VarDecl>().type = $1; $$ = $2; }
 	;
 	
 statement : 
 		
 		vardecl { $$ = $1; }
-	|	assign_expression SEMICOLON { $$ = $1; }
-	|	WHILE LPAREN expression RPAREN statement { $$ = ast->add(new Node(NT_While, {$3, $5})); }
-	|	IF LPAREN expression RPAREN statement { $$ = ast->add(new Node(NT_If, {$3, $5})); }
+	|	assign_statement SEMICOLON { $$ = $1; }
+	|	WHILE LPAREN expression RPAREN statement {  $$ = ast->push(StmtWhile($3, $5)); }
+	|	IF LPAREN expression RPAREN statement { $$ = ast->push(StmtIf($3, $5, nullptr)); }
 	|	BLOCK_BEGIN statement_list BLOCK_END { $$ = $2; }
 	;
 
 statement_list : 
-		statement { $$ = ast->add(new Node(NT_NtList, {$1})); }
+		statement { $$ = ast->push<NodeList>({}); $$->As<NodeList>().nodes.push_back($1); }
 	|	statement_list statement { 
 			$$ = $1;
-			$1->nodes.push_back( {$2} );
+			$1->As<NodeList>().nodes.push_back( {$2} );
 		}
 	;
 	
-assign_expression : 
+assign_statement : 
 		IDENTIFIER EQUALS expression				{ 
-			Node* ident = $$ = ast->add(new Node(NT_Identifier, $1->c_str()));
-			$$ = ast->add(new Node(NT_Assign, {ident, $3})); 
+			$$ = ast->push<Assign>({$1.c_str(), $3});
 		}
 	;
 
@@ -93,12 +85,12 @@ assign_expression :
 	
 expression :
 		LPAREN expression RPAREN				{ $$ = $2; }
-	|	IDENTIFIER								{ $$ = ast->add(new Node(NT_Identifier, $1->c_str())); }
-	|	expression PLUS expression				{ $$ = ast->add(new Node(NT_Add, {$1, $3})); } 
-	|	expression MINUS expression				{ $$ = ast->add(new Node(NT_Sub, {$1, $3})); } 	
-	|	expression ASTERISK expression			{ $$ = ast->add(new Node(NT_Mul, {$1, $3})); } 
-	|	expression FSLASH expression			{ $$ = ast->add(new Node(NT_Div, {$1, $3})); }
-	|	NUMBER									{ $$ = ast->add(new Node(NT_Num, $1)); }
+	|	IDENTIFIER								{ $$ = ast->push<Ident>({$1.c_str()}); }
+	|	expression PLUS expression				{ $$ = ast->push<ExprBin>({'+',$1, $3}); } 
+	|	expression MINUS expression				{ $$ = ast->push<ExprBin>({'-',$1, $3}); } 	
+	|	expression ASTERISK expression			{ $$ = ast->push<ExprBin>({'*',$1, $3}); } 
+	|	expression FSLASH expression			{ $$ = ast->push<ExprBin>({'/',$1, $3}); }
+	|	NUMBER									{ $$ = ast->push<ExprLiteral>({EL_Float, $1}); }
 	;
 
 

@@ -98,27 +98,24 @@ enum NodeType
 {
 	NT_None,
 
-	NT_NumFloat,
-	NT_Var,
-
 	// expressions
-	NT_Add,
-	NT_Sub,
-	NT_Mul,
-	NT_Div,
+	NT_ExprLiteral,
+	NT_ExprBin,
 	NT_Assign,
 
+	// Statements
 	NT_If,
 	NT_While,
 
-	NT_Type,
 	NT_Identifier,
-	NT_VarInit,
-	
 	NT_VarDecl,
+
+	NT_Type,
 
 	NT_NtList, // a list of nodes
 };
+
+enum ExprLiteralType { EL_Int, EL_Float };
 
 struct Node
 {
@@ -132,6 +129,9 @@ struct Node
 		data.As<T>() = t;
 	}
 
+	template<typename T>
+	T& As() { return data.As<T>(); }
+
 	NodeType type = NT_None;
 	Variant<100> data;
 };
@@ -143,52 +143,95 @@ struct Ast
 		return node;
 	}
 
+	template<typename T>
+	inline Node* push(const T& t) {
+		return add(new Node((NodeType)T::MyNodeType, t));
+	}
+
 	std::vector<Node*> nodes;
 };
 
+
 //-------------------------------------------------------------------------
 //
 //-------------------------------------------------------------------------
-struct ExprCommon // aka expr (op) expr
-{
-	char op; // + - * / = ...
-	struct Node *left, *right;
-};
-
 struct ExprVar
 {
-	struct Node* exrp;
+	struct Node* identNode;
 };
 
-struct Expr
+struct ExprLiteral
 {
-	char sign = '+'; // sign of the expression +/-
-	union {
-		ExprCommon exprCommon;
-		ExprVar exprVar;
+	enum { MyNodeType = NT_ExprLiteral };
+
+	ExprLiteralType type; 
+
+	union
+	{
+		int int_val;
+		float float_val;
 	};
 };
 
-//-------------------------------------------------------------------------
-//
-//-------------------------------------------------------------------------
+struct ExprBin
+{
+	enum { MyNodeType = NT_ExprBin };
+
+	char ch; // sign of the expression
+	Node* left;
+	Node* right;
+};
+
+struct Assign
+{
+	enum { MyNodeType = NT_Assign };
+
+	std::string ident;
+	Node* expr;
+};
+
 struct StmtIf
 {
-	Node* exrp = nullptr;
+	enum { MyNodeType = NT_If };
+
+	StmtIf() = default;
+	StmtIf(Node* expr, Node* trueStmt, Node* falseStmt) : expr(expr), trueStmt(trueStmt), falseStmt(falseStmt) {}
+
+	Node* expr = nullptr;
 	Node* trueStmt = nullptr;
 	Node* falseStmt = nullptr; // optional
 };
 
 struct StmtWhile
 {
-	Node* exrp = nullptr;
+	enum { MyNodeType = NT_While };
+
+	StmtWhile() = default;
+	StmtWhile(Node* expr, Node* bodyStmt) : expr(expr), bodyStmt(bodyStmt) {}
+
+	Node* expr = nullptr;
 	Node* bodyStmt = nullptr;
 };
 
-//-------------------------------------------------------------------------
-//
-//-------------------------------------------------------------------------
 struct Ident
 {
-	std::string ident;
+	enum { MyNodeType = NT_Identifier };
+
+	std::string identifier;
+};
+
+struct NodeList
+{
+	enum { MyNodeType = NT_NtList };
+
+	std::vector<Node*> nodes;
+};
+
+struct VarDecl
+{
+	enum { MyNodeType = NT_VarDecl };
+
+	std::string type;
+	std::vector<Node*> ident;
+	std::vector<Node*> expr;
 };

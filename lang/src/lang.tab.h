@@ -50,20 +50,17 @@ extern int yydebug;
     PLUS = 260,
     ASTERISK = 261,
     FSLASH = 262,
-    VOID = 263,
-    INT = 264,
-    FLOAT = 265,
-    LPAREN = 266,
-    RPAREN = 267,
-    SEMICOLON = 268,
-    COMMA = 269,
-    BLOCK_BEGIN = 270,
-    BLOCK_END = 271,
-    IF = 272,
-    ELSE = 273,
-    WHILE = 274,
-    IDENTIFIER = 275,
-    NUMBER = 276
+    LPAREN = 263,
+    RPAREN = 264,
+    SEMICOLON = 265,
+    COMMA = 266,
+    BLOCK_BEGIN = 267,
+    BLOCK_END = 268,
+    IF = 269,
+    ELSE = 270,
+    WHILE = 271,
+    IDENTIFIER = 272,
+    NUMBER = 273
   };
 #endif
 

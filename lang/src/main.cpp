@@ -23,6 +23,10 @@ void f(int x) {
 	else if(x+1) {
 		y=4+5;
 	}
+	while(5){x=10;}
+	if (x) 5;
+
+	x = foo(x+3,1,3*4*foo());
 }
 
 )";
@@ -34,3 +38,19 @@ void f(int x) {
 	std::cin.get();
 	return 0;
 }
+
+void f(int x) { 
+
+}
+
+
+
+
+
+
+
+
+
+
+
+

@@ -28,6 +28,7 @@ bool parseExpression(const std::string& inp);
 %left PLUS MINUS
 %left ASTERISK FSLASH
 
+%type <node>	fncall_args expression_fncall
 %type <node>	expression
 %type <node>	vardecl_var_list vardecl assign_statement
 %type <node>	statement
@@ -65,8 +66,9 @@ vardecl :
 	
 statement : 
 		
-		vardecl SEMICOLON { $$ = $1; }
-	|	assign_statement SEMICOLON { $$ = $1; }
+		vardecl SEMICOLON { $1->hasSemicolon = true; ; $$ = $1; }
+	|	expression SEMICOLON { $1->hasSemicolon = true; $$ = $1; }
+	|	assign_statement SEMICOLON { $1->hasSemicolon = true; $$ = $1; }
 	|	WHILE LPAREN expression RPAREN statement {  $$ = ast->push(StmtWhile($3, $5)); }
 	|	IF LPAREN expression RPAREN statement { $$ = ast->push(StmtIf($3, $5, nullptr)); }
 	|	IF LPAREN expression RPAREN statement ELSE statement{ $$ = ast->push(StmtIf($3, $5, $7)); }
@@ -97,8 +99,17 @@ expression :
 	|	expression ASTERISK expression			{ $$ = ast->push<ExprBin>({'*', $1, $3}); } 
 	|	expression FSLASH expression			{ $$ = ast->push<ExprBin>({'/', $1, $3}); }
 	|	NUM_FLOAT								{ $$ = ast->push(ExprLiteral($1)); }
+	|	expression_fncall						{ $$ = $1; }
 	;
-
+	
+	// Function calls in expression
+fncall_args :
+		expression	{ $$ = ast->push<FuncCallArgs>({{$1}}); }
+	|	fncall_args COMMA expression { $1->As<FuncCallArgs>().args.push_back($3); $$ = $1; }
+	
+expression_fncall :
+		IDENTIFIER LPAREN fncall_args RPAREN { $$ = ast->push<FuncCall>({$1, $3}); }
+	|	IDENTIFIER LPAREN RPAREN { $$ = ast->push<FuncCall>({$1, nullptr}); }
 
 %%
 

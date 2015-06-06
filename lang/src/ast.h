@@ -14,6 +14,9 @@ enum NodeType
 	NT_ExprBin,
 	NT_Assign,
 
+	NT_FuncCall,
+	NT_FuncCallArgs, // a sub node specially created for function call expresions
+
 	// Statements
 	NT_If,
 	NT_While,
@@ -24,6 +27,8 @@ enum NodeType
 	NT_Type,
 
 	NT_FuncDecl,
+
+	
 
 	NT_NtList, // a list of nodes
 };
@@ -50,7 +55,8 @@ struct Node
 
 		if(inParens) retval = '(' + retval +')';
 		if(exprSign != '+') retval = exprSign + retval;
-		if(inBlock) retval = '{' + retval + '}';
+		if(hasSemicolon) retval += ";\n";
+		if(inBlock) retval = "\n{" + retval + "}\n";
 
 		return retval;
 	}
@@ -61,6 +67,7 @@ struct Node
 	char exprSign = '+'; // The sign of the expression. Used for -expr for example.
 	bool inParens = false; // True if the expression is surrounded with parens.
 	bool inBlock = false; // True if the statement is surrounded by { }
+	bool hasSemicolon = false; // True if the statement is of kind <--->; 
 };
 
 struct Ast
@@ -120,7 +127,7 @@ struct ExprLiteral
 
 	std::string GenerateGLSL()
 	{
-		char buff[64];
+		char buff[64] = {0};
 		sprintf(buff, "%f", float_val);
 
 		// kill the trailing zeroes.
@@ -156,7 +163,7 @@ struct Assign
 	Node* expr;
 
 	std::string GenerateGLSL() {
-		return ident + " = " + expr->GenerateGLSL() + ";";
+		return ident + " = " + expr->GenerateGLSL();
 	}
 };
 
@@ -174,7 +181,7 @@ struct StmtIf
 	std::string GenerateGLSL() {
 		std::string retval = " if(" + expr->GenerateGLSL() + ")";
 		if(trueStmt) retval += trueStmt->GenerateGLSL(); else retval += ';';
-		if(falseStmt) retval += " else" + falseStmt->GenerateGLSL();
+		if(falseStmt) retval += "else" + falseStmt->GenerateGLSL();
 		return retval;
 	}
 };
@@ -226,7 +233,8 @@ struct VarDecl
 		{
 			retval += ident[t];
 			if(expr[t]) {
-				retval += " = " + expr[t]->GenerateGLSL() + ",";
+				retval += " = " + expr[t]->GenerateGLSL();
+				if(t < ident.size() - 1) retval += ',';
 			}
 		}
 
@@ -249,6 +257,39 @@ struct FuncDecl
 		if(args) retval += args->GenerateGLSL();
 		retval += ") { " + stmt->GenerateGLSL() + "} ";
 
+		return retval;
+	}
+};
+
+struct FuncCallArgs
+{
+	enum { MyNodeType = NT_FuncCallArgs };
+
+	std::vector<Node*> args;
+
+	std::string GenerateGLSL() {
+		std::string retval;
+
+		for(int t = 0; t < args.size(); ++t) {
+			retval += args[t]->GenerateGLSL();
+			if(t < args.size() - 1) retval += ",";
+		}
+
+		return retval;
+	}
+};
+
+struct FuncCall
+{
+	enum { MyNodeType = NT_FuncCall };
+
+	std::string fnName;
+	Node* args;
+
+	std::string GenerateGLSL() {
+		std::string retval = fnName + '(';
+		if(args) retval += args->GenerateGLSL();
+		retval += ')';
 		return retval;
 	}
 };

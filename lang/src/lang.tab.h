@@ -60,7 +60,7 @@ extern int yydebug;
     ELSE = 270,
     WHILE = 271,
     IDENTIFIER = 272,
-    NUMBER = 273
+    NUM_FLOAT = 273
   };
 #endif
 

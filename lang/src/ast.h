@@ -5,95 +5,6 @@
 
 #include "utils/variant.h"
 
-#if 0
-enum NodeType
-{
-	NT_None,
-
-	NT_Num,
-	NT_Var,
-
-	// expressions
-	NT_Add,
-	NT_Sub,
-	NT_Mul,
-	NT_Div,
-	NT_Assign,
-
-	NT_If,
-	NT_While,
-
-	NT_Type,
-	NT_Identifier,
-	NT_VarInit,
-	
-	NT_VarDecl,
-
-	NT_NtList, // a list of nodes
-};
-
-struct Node
-{
-	Node() : type(NT_None) {}
-
-	Node(const NodeType type, float number = 0.f) : type(type) {
-
-		fData = number;
-	}
-
-	Node(const NodeType type, const char str[]) : type(type), strData(str) {}
-
-	Node(const NodeType type, std::initializer_list<Node*> nodes) : type(type), nodes(nodes) {}
-
-	union {
-		float fData;
-		int iData;
-	};
-
-	std::string strData;
-
-	NodeType type;
-	std::vector<Node*> nodes;
-
-	//-------------------------------------------------------------
-	//
-	//-------------------------------------------------------------
-	void printDepth(int depth) const {
-		while(depth--) std::cout << "  ";
-	}
-
-	void printMe(const int depth) const
-	{
-		std::cout << std::endl;
-		printDepth(depth);
-		if(type == NT_Num) std::cout << fData;
-		else if(type == NT_Add){std::cout << "+";nodes[0]->printMe(depth+1); nodes[1]->printMe(depth+1);}
-		else if(type == NT_Sub){std::cout << "-";nodes[0]->printMe(depth+1); nodes[1]->printMe(depth+1);}
-		else if(type == NT_Mul){std::cout << "*";nodes[0]->printMe(depth+1); nodes[1]->printMe(depth+1);}
-		else if(type == NT_Div){std::cout << "/";nodes[0]->printMe(depth+1); nodes[1]->printMe(depth+1);}
-		else if(type == NT_Assign) { std::cout << "="; nodes[0]->printMe(depth+1); nodes[1]->printMe(depth+1);}
-		else if(type == NT_If) {std::cout << "if (expr) stmt"; nodes[0]->printMe(depth+1); nodes[1]->printMe(depth+1);}
-		else if(type == NT_While) {std::cout << "while (expr) stmt"; nodes[0]->printMe(depth+1); nodes[1]->printMe(depth+1);}
-		else if(type == NT_Identifier) { std::cout << "ident " << strData.c_str(); }
-		else if(type == NT_Type) { std::cout << "type " << strData.c_str(); }
-		else if(type == NT_VarInit) { 
-			
-			if(nodes.size() > 0) { std::cout << "var " << strData.c_str() << " = expr"; nodes[0]->printMe(depth+1); }
-			else std::cout << "var " << strData.c_str(); 
-		}
-		else if(type == NT_VarDecl) { std::cout << "vardecl "; nodes[0]->printMe(depth+1); nodes[1]->printMe(depth+1);}
-		
-		else if(type == NT_NtList)
-		{
-			std::cout << "node list:";
-			for(const auto& node : nodes) node->printMe(depth+1);
-		}
-		else std::cout << "Found node type=" << type;
-	}
-
-};
-#endif
-
 enum NodeType
 {
 	NT_None,
@@ -112,10 +23,12 @@ enum NodeType
 
 	NT_Type,
 
+	NT_FuncDecl,
+
 	NT_NtList, // a list of nodes
 };
 
-enum ExprLiteralType { EL_Int, EL_Float };
+enum ExprLiteralType { EL_Unknown, EL_Int, EL_Float };
 
 struct Node
 {
@@ -132,8 +45,22 @@ struct Node
 	template<typename T>
 	T& As() { return data.As<T>(); }
 
+	std::string GenerateGLSL() {
+		std::string retval = data.GenerateGLSL();
+
+		if(inParens) retval = '(' + retval +')';
+		if(exprSign != '+') retval = exprSign + retval;
+		if(inBlock) retval = '{' + retval + '}';
+
+		return retval;
+	}
+
 	NodeType type = NT_None;
 	Variant<100> data;
+
+	char exprSign = '+'; // The sign of the expression. Used for -expr for example.
+	bool inParens = false; // True if the expression is surrounded with parens.
+	bool inBlock = false; // True if the statement is surrounded by { }
 };
 
 struct Ast
@@ -155,9 +82,24 @@ struct Ast
 //-------------------------------------------------------------------------
 //
 //-------------------------------------------------------------------------
+struct Ident
+{
+	enum { MyNodeType = NT_Identifier };
+
+	std::string identifier;
+
+	std::string GenerateGLSL() {
+		return identifier;
+	}
+};
+
 struct ExprVar
 {
 	struct Node* identNode;
+
+	std::string GenerateGLSL() {
+		return identNode->As<Ident>().GenerateGLSL();
+	}
 };
 
 struct ExprLiteral
@@ -171,15 +113,39 @@ struct ExprLiteral
 		int int_val;
 		float float_val;
 	};
+
+	ExprLiteral() : type(EL_Unknown) {}
+	ExprLiteral(float f) : type(EL_Float), float_val(f) {}
+	ExprLiteral(int i) : type(EL_Int), int_val(i) {}
+
+	std::string GenerateGLSL()
+	{
+		char buff[64];
+		sprintf(buff, "%f", float_val);
+
+		// kill the trailing zeroes.
+		for(int t = strlen(buff);t > 1; --t){
+			if(buff[t] == '0' && buff[t-1] == '0') {
+				buff[t] = '\0';
+			}
+			if(buff[t] == '.') break;
+		}
+
+		return buff;
+	}
 };
 
 struct ExprBin
 {
 	enum { MyNodeType = NT_ExprBin };
 
-	char ch; // sign of the expression
+	char sign; // sign of the expression
 	Node* left;
 	Node* right;
+
+	std::string GenerateGLSL() {
+		return left->GenerateGLSL() + sign + right->GenerateGLSL();
+	}
 };
 
 struct Assign
@@ -188,6 +154,10 @@ struct Assign
 
 	std::string ident;
 	Node* expr;
+
+	std::string GenerateGLSL() {
+		return ident + " = " + expr->GenerateGLSL() + ";";
+	}
 };
 
 struct StmtIf
@@ -200,6 +170,13 @@ struct StmtIf
 	Node* expr = nullptr;
 	Node* trueStmt = nullptr;
 	Node* falseStmt = nullptr; // optional
+
+	std::string GenerateGLSL() {
+		std::string retval = " if(" + expr->GenerateGLSL() + ")";
+		if(trueStmt) retval += trueStmt->GenerateGLSL(); else retval += ';';
+		if(falseStmt) retval += " else" + falseStmt->GenerateGLSL();
+		return retval;
+	}
 };
 
 struct StmtWhile
@@ -211,13 +188,12 @@ struct StmtWhile
 
 	Node* expr = nullptr;
 	Node* bodyStmt = nullptr;
-};
 
-struct Ident
-{
-	enum { MyNodeType = NT_Identifier };
-
-	std::string identifier;
+	std::string GenerateGLSL() {
+		std::string retval = " while(" + expr->GenerateGLSL() + ")";
+		if(bodyStmt) retval += bodyStmt->GenerateGLSL(); else retval += ';';
+		return retval;
+	}
 };
 
 struct NodeList
@@ -225,6 +201,13 @@ struct NodeList
 	enum { MyNodeType = NT_NtList };
 
 	std::vector<Node*> nodes;
+
+	std::string GenerateGLSL()
+	{
+		std::string retval;
+		for(auto& node : nodes) retval += node->GenerateGLSL();
+		return retval;
+	}
 };
 
 struct VarDecl
@@ -232,6 +215,40 @@ struct VarDecl
 	enum { MyNodeType = NT_VarDecl };
 
 	std::string type;
-	std::vector<Node*> ident;
+	std::vector<std::string> ident;
 	std::vector<Node*> expr;
+
+	std::string GenerateGLSL()
+	{
+		std::string retval = type + " ";
+
+		for(int t = 0; t < ident.size(); ++t)
+		{
+			retval += ident[t];
+			if(expr[t]) {
+				retval += " = " + expr[t]->GenerateGLSL() + ",";
+			}
+		}
+
+		return retval;
+	}
+};
+
+struct FuncDecl
+{
+	enum { MyNodeType = NT_FuncDecl };
+
+	std::string retType;
+	std::string name;
+	Node* args;
+	Node* stmt;
+
+	std::string GenerateGLSL() {
+
+		std::string retval = retType + " " + name + "(";
+		if(args) retval += args->GenerateGLSL();
+		retval += ") { " + stmt->GenerateGLSL() + "} ";
+
+		return retval;
+	}
 };

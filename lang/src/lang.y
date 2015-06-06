@@ -23,48 +23,54 @@ bool parseExpression(const std::string& inp);
 %token <no_type>		LPAREN RPAREN SEMICOLON COMMA BLOCK_BEGIN BLOCK_END
 %token <no_type>		IF ELSE WHILE
 %token <str_val>		IDENTIFIER
-%token <float_val>		NUMBER
+%token <float_val>		NUM_FLOAT
 
 %left PLUS MINUS
 %left ASTERISK FSLASH
 
 %type <node>	expression
-%type <node>	vardecl_var vardecl_var_list vardecl assign_statement
+%type <node>	vardecl_var_list vardecl assign_statement
 %type <node>	statement
-%type <node>	statement_list
+%type <node>	statement_list function_decl
 
 %start grammar
 
 %%
 
-grammar : statement_list;
+grammar : function_decl;
 
-
-vardecl_var : 	
-		IDENTIFIER { $$ = ast->push<Ident>({$1.c_str()}); }
+function_decl : 
+	IDENTIFIER IDENTIFIER LPAREN vardecl RPAREN statement_list {
+		$$ = ast->push<FuncDecl>({$1, $2, $4, $6});
+	}
+	|
+	IDENTIFIER IDENTIFIER LPAREN RPAREN statement_list {
+		$$ = ast->push<FuncDecl>({$1, $2, nullptr, $5});
+	}
 	;
 
 vardecl_var_list : 
-		vardecl_var { $$ = ast->push<VarDecl>({"unk", {$1}, {nullptr}}); } // unk used for unknown
-	|	vardecl_var EQUALS expression { $$ = ast->push<VarDecl>({"unk", {$1}, {$3}}); } // unk used for unknown
-	|	vardecl_var_list COMMA vardecl_var { $$->As<VarDecl>().ident.push_back($3);	}
-	|	vardecl_var_list COMMA vardecl_var EQUALS expression { 
+		IDENTIFIER { $$ = ast->push<VarDecl>({"unk", {$1}, {nullptr}}); } // unk used for unknown
+	|	IDENTIFIER EQUALS expression { $$ = ast->push<VarDecl>({"unk", {$1}, {$3}}); } // unk used for unknown
+	|	vardecl_var_list COMMA IDENTIFIER { $$->As<VarDecl>().ident.push_back($3);	}
+	|	vardecl_var_list COMMA IDENTIFIER EQUALS expression { 
 			$$ = $1; 
 			$$->As<VarDecl>().ident.push_back($3);
 			$$->As<VarDecl>().expr.push_back($5);
 		}
 
 vardecl :
-		IDENTIFIER vardecl_var_list SEMICOLON	{ $2->As<VarDecl>().type = $1; $$ = $2; }
+		IDENTIFIER vardecl_var_list	{ $2->As<VarDecl>().type = $1; $$ = $2; }
 	;
 	
 statement : 
 		
-		vardecl { $$ = $1; }
+		vardecl SEMICOLON { $$ = $1; }
 	|	assign_statement SEMICOLON { $$ = $1; }
 	|	WHILE LPAREN expression RPAREN statement {  $$ = ast->push(StmtWhile($3, $5)); }
 	|	IF LPAREN expression RPAREN statement { $$ = ast->push(StmtIf($3, $5, nullptr)); }
-	|	BLOCK_BEGIN statement_list BLOCK_END { $$ = $2; }
+	|	IF LPAREN expression RPAREN statement ELSE statement{ $$ = ast->push(StmtIf($3, $5, $7)); }
+	|	BLOCK_BEGIN statement_list BLOCK_END { $2->inBlock = true; $$ = $2; }
 	;
 
 statement_list : 
@@ -84,13 +90,13 @@ assign_statement :
 	
 	
 expression :
-		LPAREN expression RPAREN				{ $$ = $2; }
-	|	IDENTIFIER								{ $$ = ast->push<Ident>({$1.c_str()}); }
-	|	expression PLUS expression				{ $$ = ast->push<ExprBin>({'+',$1, $3}); } 
-	|	expression MINUS expression				{ $$ = ast->push<ExprBin>({'-',$1, $3}); } 	
-	|	expression ASTERISK expression			{ $$ = ast->push<ExprBin>({'*',$1, $3}); } 
-	|	expression FSLASH expression			{ $$ = ast->push<ExprBin>({'/',$1, $3}); }
-	|	NUMBER									{ $$ = ast->push<ExprLiteral>({EL_Float, $1}); }
+		LPAREN expression RPAREN				{ $2->inParens = true; $$ = $2; }
+	|	IDENTIFIER								{ $$ = ast->push<Ident>({$1}); }
+	|	expression PLUS expression				{ $$ = ast->push<ExprBin>({'+', $1, $3}); } 
+	|	expression MINUS expression				{ $$ = ast->push<ExprBin>({'-', $1, $3}); } 	
+	|	expression ASTERISK expression			{ $$ = ast->push<ExprBin>({'*', $1, $3}); } 
+	|	expression FSLASH expression			{ $$ = ast->push<ExprBin>({'/', $1, $3}); }
+	|	NUM_FLOAT								{ $$ = ast->push(ExprLiteral($1)); }
 	;
 
 

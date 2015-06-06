@@ -811,7 +811,7 @@ YY_RULE_SETUP
 case 6:
 YY_RULE_SETUP
 #line 21 "lang.l"
-{ yylval->float_val = atof(yytext); return NUMBER;}
+{ yylval->float_val = atof(yytext); return NUM_FLOAT;}
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
@@ -2043,21 +2043,21 @@ void yyfree (void * ptr , yyscan_t yyscanner)
 
 int yywrap(yyscan_t yyscanner)
 {
-    return 1;
+	return 1;
 }
 	//The function that knows how to parse the language.
 bool LangParseExpression(const std::string& inp, Ast* ast)
 {
-    yyscan_t myscanner;
-    yylex_init(&myscanner);
-    struct yyguts_t * yyg = (struct yyguts_t*)myscanner;
-
-    yy_delete_buffer(YY_CURRENT_BUFFER,myscanner);
-
-    /*Copy string into new buffer and Switch buffers*/
-    yy_scan_string(inp.c_str(),myscanner);
-
-    bool nasi = yyparse(myscanner, ast);
-    yylex_destroy(myscanner);
-    return nasi;
+	yyscan_t myscanner;
+	yylex_init(&myscanner);
+	struct yyguts_t * yyg = (struct yyguts_t*)myscanner;
+	
+	yy_delete_buffer(YY_CURRENT_BUFFER,myscanner);
+	
+	/*Copy string into new buffer and Switch buffers*/
+	yy_scan_string(inp.c_str(),myscanner);
+	
+	bool nasi = yyparse(myscanner, ast);
+	yylex_destroy(myscanner);
+	return nasi;
 }

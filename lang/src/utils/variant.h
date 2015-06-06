@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 template <int Nbytes>
 struct Variant
 {
@@ -30,21 +32,27 @@ struct Variant
 	template<typename T>
 	T& As() { return *((T*) object); }
 
+	std::string GenerateGLSL() { return GetTypeHolder()->CallGenerateGLSL(object); }
+
 private :
 
 	struct Base
 	{
 		virtual void constr(void*) const = 0;
 		virtual void destruct(void*) const = 0;
+
+		virtual std::string CallGenerateGLSL(void*) const = 0;
 	};
 
-	struct Dummy {};
+	struct Dummy {std::string GenerateGLSL() { return std::string(); } };
 
 	template<typename T>
 	struct TypeHolder : Base
 	{
 		void constr(void* p) const override { new (p) T; }
 		void destruct(void* p) const override { ((T*)(p))->~T(); }
+
+		std::string CallGenerateGLSL(void* p) const override { return ((T*)(p))->GenerateGLSL(); }
 	};
 
 

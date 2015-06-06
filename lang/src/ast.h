@@ -28,12 +28,29 @@ enum NodeType
 
 	NT_FuncDecl,
 
-	
+	NT_ProgramElem,
 
 	NT_NtList, // a list of nodes
 };
 
-enum ExprLiteralType { EL_Unknown, EL_Int, EL_Float };
+enum ExprLiteralType { 
+	EL_Unknown, 
+	EL_Int, 
+	EL_Float 
+};
+
+enum ExprBinType { 
+	EBT_Add, 
+	EBT_Sub, 
+	EBT_Mul, 
+	EBT_Div, 
+	EBT_Greater, 
+	EBT_GEquals, 
+	EBT_Less, 
+	EBT_LEquals, 
+	EBT_Or, 
+	EBT_And 
+};
 
 struct Node
 {
@@ -82,6 +99,7 @@ struct Ast
 		return add(new Node((NodeType)T::MyNodeType, t));
 	}
 
+	Node* program;
 	std::vector<Node*> nodes;
 };
 
@@ -128,17 +146,29 @@ struct ExprLiteral
 	std::string GenerateGLSL()
 	{
 		char buff[64] = {0};
-		sprintf(buff, "%f", float_val);
 
-		// kill the trailing zeroes.
-		for(int t = strlen(buff);t > 1; --t){
-			if(buff[t] == '0' && buff[t-1] == '0') {
-				buff[t] = '\0';
+		if(type == EL_Float)
+		{
+			
+			sprintf(buff, "%f", float_val);
+
+			// kill the trailing zeroes.
+			for(int t = strlen(buff);t > 1; --t){
+				if(buff[t] == '0' && buff[t-1] == '0') {
+					buff[t] = '\0';
+				}
+				if(buff[t] == '.') break;
 			}
-			if(buff[t] == '.') break;
+
+			return buff;
+		}
+		else if(type == EL_Int)
+		{
+			sprintf(buff, "%d", int_val);
+			return buff;
 		}
 
-		return buff;
+		return "???";
 	}
 };
 
@@ -146,12 +176,29 @@ struct ExprBin
 {
 	enum { MyNodeType = NT_ExprBin };
 
-	char sign; // sign of the expression
+	ExprBinType type;
 	Node* left;
 	Node* right;
 
 	std::string GenerateGLSL() {
-		return left->GenerateGLSL() + sign + right->GenerateGLSL();
+
+		auto EBT2String = [](const ExprBinType& ebt) {
+			switch(ebt) {
+				case EBT_Add :      return std::string(" + ");
+				case EBT_Sub :      return std::string(" - ");
+				case EBT_Mul :      return std::string(" * ");
+				case EBT_Div :      return std::string(" / ");
+				case EBT_Greater :  return std::string(" > ");
+				case EBT_GEquals :  return std::string(" >= ");
+				case EBT_Less :     return std::string(" < ");
+				case EBT_LEquals :  return std::string(" <= ");
+				case EBT_Or :       return std::string(" || ");
+				case EBT_And :      return std::string(" && ");
+				default :           return std::string(" ??? ");
+			}
+		};
+
+		return left->GenerateGLSL() + EBT2String(type) + right->GenerateGLSL();
 	}
 };
 
@@ -290,6 +337,23 @@ struct FuncCall
 		std::string retval = fnName + '(';
 		if(args) retval += args->GenerateGLSL();
 		retval += ')';
+		return retval;
+	}
+};
+
+struct ProgramElem
+{
+	enum { MyNodeType = NT_ProgramElem };
+
+	std::vector<Node*> nodes;
+
+	std::string GenerateGLSL() {
+		std::string retval;
+
+		for(const auto& node : nodes) {
+			retval += node->GenerateGLSL();
+		}
+
 		return retval;
 	}
 };

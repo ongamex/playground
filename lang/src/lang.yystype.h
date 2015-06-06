@@ -10,6 +10,7 @@ struct LangYYSTYPE
 	{
 		struct Node* node;
 		float float_val;
+		int int_val;
 		struct {} no_type;
 	};
 };

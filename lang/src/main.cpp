@@ -3,12 +3,12 @@
 
 bool LangParseExpression(const std::string& inp, Ast* ast);
 
-
-
 std::string GenerateGLSL(const Ast* ast)
 {
-	return ast->nodes.back()->GenerateGLSL();
+	return ast->program->GenerateGLSL();
 }
+
+struct bla { int x; };
 
 int main()
 {
@@ -20,7 +20,8 @@ void f(int x) {
 	if(x + 5) {
 		x = (10+3)*5;
 	}
-	else if(x+1) {
+	
+	if(x+1) {
 		y=4+5;
 	}
 	while(5){x=10;}
@@ -29,7 +30,12 @@ void f(int x) {
 	x = foo(x+3,1,3*4*foo());
 }
 
+void f() {
+	int x = 1.0;
+}
+
 )";
+	auto f = bla {5};
 
 
 	LangParseExpression(code, &ast);
@@ -38,19 +44,3 @@ void f(int x) {
 	std::cin.get();
 	return 0;
 }
-
-void f(int x) { 
-
-}
-
-
-
-
-
-
-
-
-
-
-
-

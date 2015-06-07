@@ -86,8 +86,8 @@ struct Node
 
 		if(inParens) retval = '(' + retval +')';
 		if(exprSign != '+') retval = exprSign + retval;
-		if(hasSemicolon) retval += ";\n";
-		if(inBlock) retval = "\n{\n" + retval + "\n}\n";
+		if(hasSemicolon) retval += ";";
+		if(inBlock) retval = "{" + retval + "}";
 
 		return retval;
 	}
@@ -244,7 +244,7 @@ struct StmtIf
 	std::string GenerateGLSL() {
 		std::string retval = " if(" + expr->GenerateGLSL() + ")";
 		if(trueStmt) retval += trueStmt->GenerateGLSL(); else retval += ';';
-		if(falseStmt) retval += "else" + falseStmt->GenerateGLSL();
+		if(falseStmt) retval += "else " + falseStmt->GenerateGLSL();
 		return retval;
 	}
 };
@@ -319,7 +319,7 @@ struct VarDecl
 		{
 			retval += ident[t];
 			if(expr[t]) {
-				retval += " = " + expr[t]->GenerateGLSL();
+				retval += "=" + expr[t]->GenerateGLSL();
 				if(t < ident.size() - 1) retval += ',';
 			}
 		}
@@ -381,7 +381,7 @@ struct FuncDecl
 
 		std::string retval = retType + " " + name + "(";
 		if(args) retval += args->GenerateGLSL();
-		retval += ") { " + stmt->GenerateGLSL() + "} ";
+		retval += "){ " + stmt->GenerateGLSL() + "}";
 
 		return retval;
 	}

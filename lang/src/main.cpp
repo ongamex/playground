@@ -8,13 +8,42 @@ std::string GenerateGLSL(const Ast* ast)
 	return ast->program->GenerateGLSL();
 }
 
-struct bla { int x; };
+std::string FormatCode(const char* code)
+{
+	std::string retval;
+	retval.reserve(strlen(code));
+
+	while(*code)
+	{
+		const char ch = *code;
+
+		if(ch == '{') {
+			retval += " {\n"; 
+		}
+		else if(ch == '}')
+		{
+			retval += "}\n";
+		}
+		else if(ch == '\n') {
+			retval += "\r\n";
+		}
+		else if(ch == ',') {
+			retval += ", ";
+		}
+		else retval += ch;
+
+
+		code++;
+	}
+
+	return retval;
+}
 
 int main()
 {
 	Ast ast;
 
-char * code = R"(
+char* code = R"(
 
 void f(inout int x, out int y, in void z, int x) {
 	if(x + 5 == 10) {
@@ -38,12 +67,13 @@ void f() {
 }
 
 )";
-	auto f = bla {5};
-
 
 	LangParseExpression(code, &ast);
+
+	std::string formatted = FormatCode(code);
+
 //	ast.nodes.back()->printMe(00);
-	std::cout << GenerateGLSL(&ast);
+	std::cout << formatted;
 	std::cin.get();
 	return 0;
 }

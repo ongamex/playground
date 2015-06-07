@@ -1,7 +1,7 @@
 #include <iostream>
 #include "ast.h"
 
-bool LangParseExpression(const std::string& inp, Ast* ast);
+bool LangParseExpression(const char* code, Ast* ast);
 
 std::string GenerateGLSL(const Ast* ast)
 {
@@ -14,9 +14,9 @@ int main()
 {
 	Ast ast;
 
-std::string code = R"(
+char * code = R"(
 
-void f(int x) {
+void f(inout int x, out int y, in void z, int x) {
 	if(x + 5 == 10) {
 		x = (10+3)*5;
 	}

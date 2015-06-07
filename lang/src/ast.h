@@ -28,6 +28,8 @@ enum NodeType
 	NT_Type,
 
 	NT_FuncDecl,
+	NT_FnDeclArgVarDecl,
+	NT_FuncDeclArgs,
 
 	NT_ProgramElem,
 
@@ -57,6 +59,13 @@ enum ExprBinType
 	EBT_And 
 };
 
+enum FnCallArgType
+{
+	FNAT_In,
+	FNAT_Out,
+	FNAT_InOut,
+};
+
 struct Node
 {
 	Node() {}
@@ -78,7 +87,7 @@ struct Node
 		if(inParens) retval = '(' + retval +')';
 		if(exprSign != '+') retval = exprSign + retval;
 		if(hasSemicolon) retval += ";\n";
-		if(inBlock) retval = "\n{" + retval + "}\n";
+		if(inBlock) retval = "\n{\n" + retval + "\n}\n";
 
 		return retval;
 	}
@@ -313,6 +322,46 @@ struct VarDecl
 				retval += " = " + expr[t]->GenerateGLSL();
 				if(t < ident.size() - 1) retval += ',';
 			}
+		}
+
+		return retval;
+	}
+};
+
+struct FnDeclArgVarDecl
+{
+	enum { MyNodeType = NT_FnDeclArgVarDecl };
+
+	std::string type;
+	std::string ident;
+	Node* expr;
+	FnCallArgType argType; //in/out/inout.
+
+	std::string GenerateGLSL() {
+		std::string retval;
+		if(argType == FNAT_InOut) retval += "inout ";
+		if(argType == FNAT_Out) retval += "out ";
+
+		retval += type + " " + ident;
+		if(expr) retval += "=" + expr->GenerateGLSL();
+		return retval;
+	}
+
+};
+
+struct FnDeclArgs
+{
+	enum { MyNodeType = NT_FuncDeclArgs };
+
+	std::vector<Node*> args;
+
+	std::string GenerateGLSL() {
+		
+		std::string retval;
+
+		for(int t = 0; t < args.size(); ++t) {
+			retval += args[t]->GenerateGLSL();
+			if(t < args.size() - 1) retval += ',';
 		}
 
 		return retval;

@@ -18,6 +18,9 @@ void yyerror (yyscan_t yyscanner, char const *msg);
 "if"													return IF;
 "else"													return ELSE;
 "while"													return WHILE;
+"in"													return IN;
+"out"													return OUT;
+"inout"													return INOUT;
 [_a-zA-Z][_a-zA-z0-9]*									{ yylval->str_val = std::string(yytext); return IDENT; }
 [0-9][0-9]*(\.[0-9]+)([eE][0-9][0-9]*)?					{ yylval->float_val = atof(yytext); return NUM_FLOAT; }
 [0-9][0-9]*												{ yylval->int_val = atoi(yytext); return NUM_INT; }
@@ -35,7 +38,7 @@ int yywrap(yyscan_t yyscanner)
 	return 1;
 }
 	//The function that knows how to parse the language.
-bool LangParseExpression(const std::string& inp, Ast* ast)
+bool LangParseExpression(const char* code, Ast* ast)
 {
 	yyscan_t myscanner;
 	yylex_init(&myscanner);
@@ -44,7 +47,7 @@ bool LangParseExpression(const std::string& inp, Ast* ast)
 	yy_delete_buffer(YY_CURRENT_BUFFER,myscanner);
 	
 	/*Copy string into new buffer and Switch buffers*/
-	yy_scan_string(inp.c_str(), myscanner);
+	yy_scan_string(code, myscanner);
 	
 	bool nasi = yyparse(myscanner, ast);
 	yylex_destroy(myscanner);

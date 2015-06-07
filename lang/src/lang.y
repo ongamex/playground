@@ -20,7 +20,7 @@ bool parseExpression(const std::string& inp);
 %}
 
 %token <no_type>		AND OR LE GE EQUALS NOTEQUALS
-%token <no_type>		IF ELSE WHILE FOR
+%token <no_type>		IF ELSE WHILE FOR IN OUT INOUT
 %token <str_val>		IDENT
 %token <float_val>		NUM_FLOAT
 %token <int_val>		NUM_INT
@@ -31,7 +31,7 @@ bool parseExpression(const std::string& inp);
 %left '+' '-'
 %left '*' '/'
 
-%type <node>	fncall_args expr_fncall
+%type <node>	fncall_args expr_fncall fndecl_vardecl_var fndecl_vardecl
 %type <node>	expr
 %type <node>	vardecl_var_list vardecl assign_stmt
 %type <node>	stmt
@@ -54,14 +54,25 @@ grammar_list :
 	|	grammar_list grammar_elem	{ $1->As<ProgramElem>().nodes.push_back($2); $$ = $1; }
 	;
 
+fndecl_vardecl_var : 
+		IDENT IDENT 							{ $$ = ast->push<FnDeclArgVarDecl>({$1, $2, nullptr, FNAT_In      }); }
+	|	IDENT IDENT '=' expr					{ $$ = ast->push<FnDeclArgVarDecl>({$1, $2, $4     , FNAT_In      }); }
+	|	IN IDENT IDENT 							{ $$ = ast->push<FnDeclArgVarDecl>({$2, $3, nullptr, FNAT_In	  }); }
+	|	IN IDENT IDENT '=' expr					{ $$ = ast->push<FnDeclArgVarDecl>({$2, $3, $5     , FNAT_In	  }); }
+	|	OUT IDENT IDENT 						{ $$ = ast->push<FnDeclArgVarDecl>({$2, $3, nullptr, FNAT_Out     }); }
+	|	OUT IDENT IDENT '=' expr				{ $$ = ast->push<FnDeclArgVarDecl>({$2, $3, $5     , FNAT_Out     }); }
+	|	INOUT IDENT IDENT 						{ $$ = ast->push<FnDeclArgVarDecl>({$2, $3, nullptr, FNAT_InOut   }); }
+	|	INOUT IDENT IDENT '=' expr				{ $$ = ast->push<FnDeclArgVarDecl>({$2, $3, $5     , FNAT_InOut   }); }
+	;
+
+fndecl_vardecl : 
+		fndecl_vardecl_var						{ $$ = ast->push<FnDeclArgs>({{$1}}); }
+	|	fndecl_vardecl ',' fndecl_vardecl_var	{ $1->As<FnDeclArgs>().args.push_back($3); $$ = $1; }
+
+	
 function_decl : 
-	IDENT IDENT '(' vardecl ')' '{' stmt_list '}' {
-		$$ = ast->push<FuncDecl>({$1, $2, $4, $7});
-	}
-	|
-	IDENT IDENT '(' ')' stmt_list {
-		$$ = ast->push<FuncDecl>({$1, $2, nullptr, $5});
-	}
+	IDENT IDENT '(' fndecl_vardecl ')' '{' stmt_list '}'	{ $$ = ast->push<FuncDecl>({$1, $2, $4, $7}); }
+	| IDENT IDENT '(' ')' stmt_list							{ $$ = ast->push<FuncDecl>({$1, $2, nullptr, $5}); }
 	;
 
 vardecl_var_list : 

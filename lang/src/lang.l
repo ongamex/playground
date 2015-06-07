@@ -18,28 +18,16 @@ void yyerror (yyscan_t yyscanner, char const *msg);
 "if"													return IF;
 "else"													return ELSE;
 "while"													return WHILE;
-[_a-zA-Z][_a-zA-z0-9]*									{ yylval->str_val = std::string(yytext); return IDENTIFIER; }
+[_a-zA-Z][_a-zA-z0-9]*									{ yylval->str_val = std::string(yytext); return IDENT; }
 [0-9][0-9]*(\.[0-9]+)([eE][0-9][0-9]*)?					{ yylval->float_val = atof(yytext); return NUM_FLOAT; }
 [0-9][0-9]*												{ yylval->int_val = atoi(yytext); return NUM_INT; }
 "&&"													return AND;
 "||"													return OR;
-"<="													return LEQUALS;
-"<"														return LESS;
-">="													return GEQUALS;
-">"														return GREATER;
+"<="													return LE;
+">="													return GE;
 "=="													return EQUALS;
 "!="													return NOTEQUALS;
-"+"														return PLUS;
-"-"														return MINUS;
-"*"														return ASTERISK;
-"/"														return FSLASH;
-"("														return LPAREN;
-")"														return RPAREN;
-"="														return ASSIGN;
-";"														return SEMICOLON;
-"{"														return BLOCK_BEGIN;
-"}"														return BLOCK_END;
-","														return COMMA;
+[-()<>=+*/;{},] 										return *yytext;
 %%
 
 int yywrap(yyscan_t yyscanner)

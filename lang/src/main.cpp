@@ -13,19 +13,28 @@ std::string FormatCode(const char* code)
 	std::string retval;
 	retval.reserve(strlen(code));
 
+	int tabs = 0;
+
+	auto addIdent = [&]() { for(int t = 0; t < tabs; ++t) retval += "  "; };
+
 	while(*code)
 	{
 		const char ch = *code;
 
 		if(ch == '{') {
-			retval += " {\n"; 
+			retval += "{\n"; tabs++;
+			addIdent();
 		}
 		else if(ch == '}')
 		{
+			tabs--;
+			retval += "\n";
+			addIdent();
 			retval += "}\n";
+			addIdent();
 		}
 		else if(ch == '\n') {
-			retval += "\r\n";
+			retval += '\n'; addIdent();
 		}
 		else if(ch == ',') {
 			retval += ", ";
@@ -70,7 +79,7 @@ void f() {
 
 	LangParseExpression(code, &ast);
 
-	std::string formatted = FormatCode(code);
+	std::string formatted = FormatCode(GenerateGLSL(&ast).c_str());
 
 //	ast.nodes.back()->printMe(00);
 	std::cout << formatted;

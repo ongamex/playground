@@ -14,6 +14,7 @@ void yyerror (yyscan_t yyscanner, char const *msg);
 %%
 
 [ \t\n]													;
+"for"													return FOR;
 "if"													return IF;
 "else"													return ELSE;
 "while"													return WHILE;

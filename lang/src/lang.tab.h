@@ -67,9 +67,10 @@ extern int yydebug;
     IF = 277,
     ELSE = 278,
     WHILE = 279,
-    IDENTIFIER = 280,
-    NUM_FLOAT = 281,
-    NUM_INT = 282
+    FOR = 280,
+    IDENTIFIER = 281,
+    NUM_FLOAT = 282,
+    NUM_INT = 283
   };
 #endif
 

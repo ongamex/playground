@@ -22,7 +22,7 @@ bool parseExpression(const std::string& inp);
 %token <no_type>		AND OR LEQUALS LESS GEQUALS GREATER EQUALS NOTEQUALS
 %token <no_type>		ASSIGN MINUS PLUS ASTERISK FSLASH
 %token <no_type>		LPAREN RPAREN SEMICOLON COMMA BLOCK_BEGIN BLOCK_END
-%token <no_type>		IF ELSE WHILE
+%token <no_type>		IF ELSE WHILE FOR
 %token <str_val>		IDENTIFIER
 %token <float_val>		NUM_FLOAT
 %token <int_val>		NUM_INT
@@ -81,14 +81,14 @@ vardecl :
 	;
 	
 statement : 
-		
-		vardecl SEMICOLON { $1->hasSemicolon = true; ; $$ = $1; }
-	|	expression SEMICOLON { $1->hasSemicolon = true; $$ = $1; }
-	|	assign_statement SEMICOLON { $1->hasSemicolon = true; $$ = $1; }
-	|	WHILE LPAREN expression RPAREN statement {  $$ = ast->push(StmtWhile($3, $5)); }
-	|	IF LPAREN expression RPAREN statement { $$ = ast->push(StmtIf($3, $5, nullptr)); }
-	|	IF LPAREN expression RPAREN statement ELSE statement{ $$ = ast->push(StmtIf($3, $5, $7)); } //[SHIFT-REDUCE]
-	|	BLOCK_BEGIN statement_list BLOCK_END { $2->inBlock = true; $$ = $2; }
+		vardecl SEMICOLON										{ $1->hasSemicolon = true; ; $$ = $1; }
+	|	expression SEMICOLON 									{ $1->hasSemicolon = true; $$ = $1; }
+	|	assign_statement SEMICOLON 								{ $1->hasSemicolon = true; $$ = $1; }
+	|	FOR LPAREN vardecl SEMICOLON expression SEMICOLON expression RPAREN statement	{ $$ = ast->push(StmtFor{$3, $5, $7, $9}); }
+	|	WHILE LPAREN expression RPAREN statement 				{ $$ = ast->push(StmtWhile($3, $5)); }
+	|	IF LPAREN expression RPAREN statement 					{ $$ = ast->push(StmtIf($3, $5, nullptr)); }
+	|	IF LPAREN expression RPAREN statement ELSE statement	{ $$ = ast->push(StmtIf($3, $5, $7)); } //[SHIFT-REDUCE]
+	|	BLOCK_BEGIN statement_list BLOCK_END 					{ $2->inBlock = true; $$ = $2; }
 	;
 
 statement_list : 
@@ -112,6 +112,8 @@ expression :
 	|	IDENTIFIER								{ $$ = ast->push<Ident>({$1}); }
 	|	expression OR expression				{ $$ = ast->push<ExprBin>({EBT_Or, $1, $3}); }
 	|	expression AND expression				{ $$ = ast->push<ExprBin>({EBT_And, $1, $3}); }
+	|	expression NOTEQUALS expression			{ $$ = ast->push<ExprBin>({EBT_NEquals, $1, $3}); }
+	|	expression EQUALS expression			{ $$ = ast->push<ExprBin>({EBT_Equals, $1, $3}); }
 	|	expression LEQUALS expression			{ $$ = ast->push<ExprBin>({EBT_LEquals, $1, $3}); }
 	|	expression LESS expression				{ $$ = ast->push<ExprBin>({EBT_Less, $1, $3}); }
 	|	expression GEQUALS expression			{ $$ = ast->push<ExprBin>({EBT_GEquals, $1, $3}); }

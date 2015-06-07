@@ -20,6 +20,7 @@ enum NodeType
 	// Statements
 	NT_If,
 	NT_While,
+	NT_For,
 
 	NT_Identifier,
 	NT_VarDecl,
@@ -33,13 +34,15 @@ enum NodeType
 	NT_NtList, // a list of nodes
 };
 
-enum ExprLiteralType { 
+enum ExprLiteralType
+{ 
 	EL_Unknown, 
 	EL_Int, 
 	EL_Float 
 };
 
-enum ExprBinType { 
+enum ExprBinType
+{ 
 	EBT_Add, 
 	EBT_Sub, 
 	EBT_Mul, 
@@ -48,6 +51,8 @@ enum ExprBinType {
 	EBT_GEquals, 
 	EBT_Less, 
 	EBT_LEquals, 
+	EBT_Equals,
+	EBT_NEquals,
 	EBT_Or, 
 	EBT_And 
 };
@@ -192,6 +197,8 @@ struct ExprBin
 				case EBT_GEquals :  return std::string(" >= ");
 				case EBT_Less :     return std::string(" < ");
 				case EBT_LEquals :  return std::string(" <= ");
+				case EBT_Equals :   return std::string(" == ");
+				case EBT_NEquals :  return std::string(" != ");
 				case EBT_Or :       return std::string(" || ");
 				case EBT_And :      return std::string(" && ");
 				default :           return std::string(" ??? ");
@@ -249,6 +256,29 @@ struct StmtWhile
 		return retval;
 	}
 };
+
+struct StmtFor
+{
+	enum { MyNodeType = NT_For };
+
+	Node* vardecl;
+	Node* boolExpr;
+	Node* postExpr;
+	Node* stmt;
+
+	std::string GenerateGLSL() {
+		std::string retval = "for(";
+		if(vardecl) retval += vardecl->GenerateGLSL(); retval += ';';
+		if(boolExpr) retval += boolExpr->GenerateGLSL(); retval += ';';
+		if(postExpr) retval += postExpr->GenerateGLSL(); 
+		retval += ')';
+
+		retval += stmt->GenerateGLSL();
+
+		return retval;
+	}
+};
+
 
 struct NodeList
 {

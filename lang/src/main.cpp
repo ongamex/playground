@@ -17,21 +17,24 @@ int main()
 std::string code = R"(
 
 void f(int x) {
-	if(x + 5) {
+	if(x + 5 == 10) {
 		x = (10+3)*5;
 	}
-	
-	if(x+1) {
-		y=4+5;
+
+	while(5 < x) {
+		x=10;
+		if (x >= 10) x = 5;
 	}
-	while(5){x=10;}
-	if (x) 5;
+	
 
 	x = foo(x+3,1,3*4*foo());
 }
 
 void f() {
 	int x = 1.0;
+	for(int t = 0; t < 10; 1+t) {
+		printf(bla);
+	}
 }
 
 )";

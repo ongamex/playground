@@ -21,6 +21,10 @@ void yyerror (yyscan_t yyscanner, char const *msg);
 "in"													return IN;
 "out"													return OUT;
 "inout"													return INOUT;
+"mul"													return MUL;
+"attribute"												return ATTRIBUTE;
+"varying"												return VARYING;
+"uniform"												return UNIFORM;
 [_a-zA-Z][_a-zA-z0-9]*									{ yylval->str_val = std::string(yytext); return IDENT; }
 [0-9][0-9]*(\.[0-9]+)([eE][0-9][0-9]*)?					{ yylval->float_val = atof(yytext); return NUM_FLOAT; }
 [0-9][0-9]*												{ yylval->int_val = atoi(yytext); return NUM_INT; }

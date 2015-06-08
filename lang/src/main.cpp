@@ -65,7 +65,7 @@ void f(inout int x, out int y, in void z, int x) {
 	}
 	
 
-	x = foo(x+3,1,3*4*foo());
+	x = foo(x+3,1,3*4*foo()) * mul(mul(3+4,foo(5)), x);
 }
 
 void f() {

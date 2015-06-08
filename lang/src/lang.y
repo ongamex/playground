@@ -17,28 +17,32 @@ void yyerror (yyscan_t yyscanner, char const *msg);
 void yyerror (yyscan_t yyscanner, Ast* ast, char const *msg);
 int yylex(YYSTYPE *yylval_param, yyscan_t yyscanner);
 bool parseExpression(const std::string& inp);
+
 %}
 
+// Token declaration.
 %token <no_type>		AND OR LE GE EQUALS NOTEQUALS
-%token <no_type>		IF ELSE WHILE FOR IN OUT INOUT
+%token <no_type>		IF ELSE WHILE FOR IN OUT INOUT MUL
 %token <str_val>		IDENT
 %token <float_val>		NUM_FLOAT
 %token <int_val>		NUM_INT
+%token <no_type>		ATTRIBUTE VARYING UNIFORM
 
+// Token precedence.
 %left AND OR
 %left EQUALS NOTEQUALS
 %left LE '<' GE '>'
 %left '+' '-'
 %left '*' '/'
 
+// Grammar expression types (from yystype).
 %type <node>	fncall_args expr_fncall fndecl_vardecl_var fndecl_vardecl
-%type <node>	expr
+%type <node>	expr stmt
 %type <node>	vardecl_var_list vardecl assign_stmt
-%type <node>	stmt
-%type <node>	stmt_list function_decl
-
+%type <node>	stmt_list function_decl shader_globals
 %type <node>	program grammar_elem grammar_list
 
+// The root.
 %start program
 
 %%
@@ -46,14 +50,43 @@ bool parseExpression(const std::string& inp);
 program : grammar_list { ast->program = $1; $$ = $1; }
 
 grammar_elem :
-		function_decl { $$ = $1; }
+		function_decl 	{ $$ = $1; }
+	|	shader_globals	{ $$ = nullptr; } // This is not a node, it just modifies the AST. 
 	;
 
 grammar_list : 
-		grammar_elem  				{ $$ = ast->push<ProgramElem>({{$1}}); }
-	|	grammar_list grammar_elem	{ $1->As<ProgramElem>().nodes.push_back($2); $$ = $1; }
-	;
 
+		grammar_elem  				
+		{ 
+			// Create a list of program elements(only functions so far).
+			$$ = ast->push<ProgramElem>(); 
+			
+			// A program element is not necessary a node. 
+			// For example vertexAttribs/varyings/uniforms they just do a add themselves
+			// to a container containing all the declarations.
+			if($1 != nullptr) $$->As<ProgramElem>().nodes.push_back($1); 
+		}
+	|	
+		grammar_list grammar_elem	
+		{ 
+			if ($2 != nullptr) $1->As<ProgramElem>().nodes.push_back($2); 
+			$$ = $1;
+		}
+	;
+	
+		
+shader_globals : 
+		// These aren't real nodes...
+		ATTRIBUTE IDENT IDENT IDENT ';'		{ $$ = nullptr; ast->vertexAttribs.push_back({$2, $3, $4}); }
+	|	VARYING	IDENT IDENT					{ $$ = nullptr; ast->varyings.push_back({$2, $3}); }
+	|	UNIFORM	IDENT IDENT					{ $$ = nullptr; ast->uniforms.push_back({$2, $3}); }
+	;
+	
+	//-------------------------------------------------
+	// Function Declaration.
+	//-------------------------------------------------
+	
+	// A single variable form the function declaration.
 fndecl_vardecl_var : 
 		IDENT IDENT 							{ $$ = ast->push<FnDeclArgVarDecl>({$1, $2, nullptr, FNAT_In      }); }
 	|	IDENT IDENT '=' expr					{ $$ = ast->push<FnDeclArgVarDecl>({$1, $2, $4     , FNAT_In      }); }
@@ -64,17 +97,24 @@ fndecl_vardecl_var :
 	|	INOUT IDENT IDENT 						{ $$ = ast->push<FnDeclArgVarDecl>({$2, $3, nullptr, FNAT_InOut   }); }
 	|	INOUT IDENT IDENT '=' expr				{ $$ = ast->push<FnDeclArgVarDecl>({$2, $3, $5     , FNAT_InOut   }); }
 	;
-
+	
+	// A list of variables for the function declaration.
 fndecl_vardecl : 
 		fndecl_vardecl_var						{ $$ = ast->push<FnDeclArgs>({{$1}}); }
 	|	fndecl_vardecl ',' fndecl_vardecl_var	{ $1->As<FnDeclArgs>().args.push_back($3); $$ = $1; }
 
 	
+	// The function delectation itself.
 function_decl : 
 	IDENT IDENT '(' fndecl_vardecl ')' '{' stmt_list '}'	{ $$ = ast->push<FuncDecl>({$1, $2, $4, $7}); }
 	| IDENT IDENT '(' ')' stmt_list							{ $$ = ast->push<FuncDecl>({$1, $2, nullptr, $5}); }
 	;
-
+	
+	//-------------------------------------------------
+	// Variable declaration statement.
+	//-------------------------------------------------
+	
+	// A single variable(or a variable list followed by a single variable) and the optional assigment expression
 vardecl_var_list : 
 		IDENT 								{ $$ = ast->push<VarDecl>({"unk", {$1}, {nullptr}}); } // unk used for unknown
 	|	IDENT '=' expr 						{ $$ = ast->push<VarDecl>({"unk", {$1}, {$3}}); } // unk used for unknown
@@ -84,10 +124,15 @@ vardecl_var_list :
 			$$->As<VarDecl>().ident.push_back($3);
 			$$->As<VarDecl>().expr.push_back($5);
 		}
-
+	
+	// The actual variable declaration
 vardecl :
 		IDENT vardecl_var_list	{ $2->As<VarDecl>().type = $1; $$ = $2; }
 	;
+	
+	//-------------------------------------------------
+	// Statements.
+	//-------------------------------------------------
 	
 stmt : 
 		vardecl ';'									{ $1->hasSemicolon = true; ; $$ = $1; }
@@ -100,6 +145,7 @@ stmt :
 	|	'{' stmt_list '}' 							{ $2->inBlock = true; $$ = $2; }
 	;
 
+	// A list of statements.
 stmt_list : 
 		stmt 				{ $$ = ast->push<NodeList>({}); $$->As<NodeList>().nodes.push_back($1); }
 	|	stmt_list stmt 		{ 
@@ -108,38 +154,49 @@ stmt_list :
 		}
 	;
 	
+	//[TODO] This should become something like expr = expr at least because of array indexing.
 assign_stmt : 
 		IDENT '=' expr				{ $$ = ast->push<Assign>({$1.c_str(), $3}); }
 	;
-
-expr :
-		'(' expr ')'			{ $2->inParens = true; $$ = $2; }
-	|	IDENT					{ $$ = ast->push<Ident>({$1}); }
-	|	expr OR expr			{ $$ = ast->push<ExprBin>({EBT_Or, $1, $3}); }
-	|	expr AND expr			{ $$ = ast->push<ExprBin>({EBT_And, $1, $3}); }
-	|	expr NOTEQUALS expr		{ $$ = ast->push<ExprBin>({EBT_NEquals, $1, $3}); }
-	|	expr EQUALS expr		{ $$ = ast->push<ExprBin>({EBT_Equals, $1, $3}); }
-	|	expr LE expr			{ $$ = ast->push<ExprBin>({EBT_LEquals, $1, $3}); }
-	|	expr '<' expr			{ $$ = ast->push<ExprBin>({EBT_Less, $1, $3}); }
-	|	expr GE expr			{ $$ = ast->push<ExprBin>({EBT_GEquals, $1, $3}); }
-	|	expr '>' expr			{ $$ = ast->push<ExprBin>({EBT_Greater, $1, $3}); }
-	|	expr '+' expr			{ $$ = ast->push<ExprBin>({EBT_Add, $1, $3}); } 
-	|	expr '-' expr			{ $$ = ast->push<ExprBin>({EBT_Sub, $1, $3}); } 	
-	|	expr '*' expr			{ $$ = ast->push<ExprBin>({EBT_Mul, $1, $3}); } 
-	|	expr '/' expr			{ $$ = ast->push<ExprBin>({EBT_Div, $1, $3}); }
-	|	NUM_FLOAT				{ $$ = ast->push(ExprLiteral($1)); }
-	|	NUM_INT					{ $$ = ast->push(ExprLiteral($1)); }
-	|	expr_fncall				{ $$ = $1; }
-	;
 	
-	// Function calls in expr
+	//-------------------------------------------------
+	// Expressions (like +-*/ function calls, literals ect.).
+	//-------------------------------------------------
+expr :
+		'(' expr ')'				{ $2->inParens = true; $$ = $2; }
+	|	IDENT						{ $$ = ast->push<Ident>({$1}); }
+	|	expr OR expr				{ $$ = ast->push<ExprBin>({EBT_Or, $1, $3}); }
+	|	expr AND expr				{ $$ = ast->push<ExprBin>({EBT_And, $1, $3}); }
+	|	expr NOTEQUALS expr			{ $$ = ast->push<ExprBin>({EBT_NEquals, $1, $3}); }
+	|	expr EQUALS expr			{ $$ = ast->push<ExprBin>({EBT_Equals, $1, $3}); }
+	|	expr LE expr				{ $$ = ast->push<ExprBin>({EBT_LEquals, $1, $3}); }
+	|	expr '<' expr				{ $$ = ast->push<ExprBin>({EBT_Less, $1, $3}); }
+	|	expr GE expr				{ $$ = ast->push<ExprBin>({EBT_GEquals, $1, $3}); }
+	|	expr '>' expr				{ $$ = ast->push<ExprBin>({EBT_Greater, $1, $3}); }
+	|	expr '+' expr				{ $$ = ast->push<ExprBin>({EBT_Add, $1, $3}); } 
+	|	expr '-' expr				{ $$ = ast->push<ExprBin>({EBT_Sub, $1, $3}); } 	
+	|	expr '*' expr				{ $$ = ast->push<ExprBin>({EBT_Mul, $1, $3}); } 
+	|	expr '/' expr				{ $$ = ast->push<ExprBin>({EBT_Div, $1, $3}); }
+	|	MUL '(' expr ',' expr ')'	{ $$ = ast->push(ExprBin(EBT_MatMul, $3, $5)); }
+	|	NUM_FLOAT					{ $$ = ast->push(ExprLiteral($1)); }
+	|	NUM_INT						{ $$ = ast->push(ExprLiteral($1)); }
+	|	expr_fncall					{ $$ = $1; }	
+	;
+
+	
+	// Function arguments as a list.
 fncall_args :
 		expr					{ $$ = ast->push<FuncCallArgs>({{$1}}); }
 	|	fncall_args ',' expr 	{ $1->As<FuncCallArgs>().args.push_back($3); $$ = $1; }
 	
+	// The function call expression itself.
 expr_fncall :
 		IDENT '(' fncall_args ')'	{ $$ = ast->push<FuncCall>({$1, $3}); }
 	|	IDENT '(' ')' 				{ $$ = ast->push<FuncCall>({$1, nullptr}); }
+
+	//--------------------------------------------
+	//
+	//--------------------------------------------
 
 %%
 

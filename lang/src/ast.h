@@ -46,7 +46,8 @@ enum ExprLiteralType
 enum ExprBinType
 { 
 	EBT_Add, 
-	EBT_Sub, 
+	EBT_Sub,
+	EBT_MatMul, // HLSL-style matrix multiplication
 	EBT_Mul, 
 	EBT_Div, 
 	EBT_Greater, 
@@ -56,7 +57,7 @@ enum ExprBinType
 	EBT_Equals,
 	EBT_NEquals,
 	EBT_Or, 
-	EBT_And 
+	EBT_And,
 };
 
 enum FnCallArgType
@@ -64,6 +65,25 @@ enum FnCallArgType
 	FNAT_In,
 	FNAT_Out,
 	FNAT_InOut,
+};
+
+struct VertexAttribs
+{
+	std::string type;
+	std::string varName;
+	std::string semantic;
+};
+
+struct Varyings
+{
+	std::string type;
+	std::string varName;
+};
+
+struct Uniforms
+{
+	std::string type;
+	std::string varName;
 };
 
 struct Node
@@ -82,6 +102,9 @@ struct Node
 	T& As() { return data.As<T>(); }
 
 	std::string GenerateGLSL() {
+
+		if(type == NT_None) return std::string();
+		
 		std::string retval = data.GenerateGLSL();
 
 		if(inParens) retval = '(' + retval +')';
@@ -109,18 +132,28 @@ struct Ast
 	}
 
 	template<typename T>
-	inline Node* push(const T& t) {
+	inline Node* push(const T t = T()) {
 		return add(new Node((NodeType)T::MyNodeType, t));
 	}
 
 	Node* program;
 	std::vector<Node*> nodes;
+
+	std::vector<VertexAttribs> vertexAttribs;
+	std::vector<Varyings> varyings;
+	std::vector<Uniforms> uniforms;
 };
 
 
 //-------------------------------------------------------------------------
 //
 //-------------------------------------------------------------------------
+struct EmptyNode
+{
+	enum { MyNodeType = NT_None };
+};
+
+
 struct Ident
 {
 	enum { MyNodeType = NT_Identifier };
@@ -190,31 +223,35 @@ struct ExprBin
 {
 	enum { MyNodeType = NT_ExprBin };
 
+	ExprBin() = default;
+
+	ExprBin(ExprBinType type, Node* left, Node* right) :
+		type(type), left(left), right(right)
+	{}
+
 	ExprBinType type;
 	Node* left;
 	Node* right;
 
 	std::string GenerateGLSL() {
+		switch(type) {
+			case EBT_Add :      return left->GenerateGLSL() + (" + ") + right->GenerateGLSL();
+			case EBT_Sub :      return left->GenerateGLSL() + (" - ") + right->GenerateGLSL();
+			case EBT_MatMul :   return "mul(" + left->GenerateGLSL() + "," + right->GenerateGLSL() + ")"; 
+			case EBT_Mul :      return left->GenerateGLSL() + (" * ") + right->GenerateGLSL();
+			case EBT_Div :      return left->GenerateGLSL() + (" / ") + right->GenerateGLSL();
+			case EBT_Greater :  return left->GenerateGLSL() + (" > ") + right->GenerateGLSL();
+			case EBT_GEquals :  return left->GenerateGLSL() + (" >= ") + right->GenerateGLSL();
+			case EBT_Less :     return left->GenerateGLSL() + (" < ") + right->GenerateGLSL();
+			case EBT_LEquals :  return left->GenerateGLSL() + (" <= ") + right->GenerateGLSL();
+			case EBT_Equals :   return left->GenerateGLSL() + (" == ") + right->GenerateGLSL();
+			case EBT_NEquals :  return left->GenerateGLSL() + (" != ") + right->GenerateGLSL();
+			case EBT_Or :       return left->GenerateGLSL() + (" || ") + right->GenerateGLSL();
+			case EBT_And :      return left->GenerateGLSL() + (" && ") + right->GenerateGLSL();
+			default :           return left->GenerateGLSL() + (" ??? ") + right->GenerateGLSL();
+		}
 
-		auto EBT2String = [](const ExprBinType& ebt) {
-			switch(ebt) {
-				case EBT_Add :      return std::string(" + ");
-				case EBT_Sub :      return std::string(" - ");
-				case EBT_Mul :      return std::string(" * ");
-				case EBT_Div :      return std::string(" / ");
-				case EBT_Greater :  return std::string(" > ");
-				case EBT_GEquals :  return std::string(" >= ");
-				case EBT_Less :     return std::string(" < ");
-				case EBT_LEquals :  return std::string(" <= ");
-				case EBT_Equals :   return std::string(" == ");
-				case EBT_NEquals :  return std::string(" != ");
-				case EBT_Or :       return std::string(" || ");
-				case EBT_And :      return std::string(" && ");
-				default :           return std::string(" ??? ");
-			}
-		};
-
-		return left->GenerateGLSL() + EBT2String(type) + right->GenerateGLSL();
+		return "expr ??? expr";
 	}
 };
 

@@ -11,14 +11,17 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\ast.cpp" />
     <ClCompile Include="src\lang.lex.yy.cpp" />
     <ClCompile Include="src\lang.tab.cpp" />
     <ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\ast.h" />
+    <ClInclude Include="src\lang.h" />
     <ClInclude Include="src\lang.tab.h" />
     <ClInclude Include="src\lang.yystype.h" />
+    <ClInclude Include="src\utils\variant.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="src\lang.l" />

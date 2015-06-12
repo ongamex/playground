@@ -32,7 +32,10 @@ struct Variant
 	template<typename T>
 	T& As() { return *((T*) object); }
 
-	std::string GenerateGLSL() { return GetTypeHolder()->CallGenerateGLSL(object); }
+	std::string NodeGenerateCode(const LangSetting& lang) { 
+		return GetTypeHolder()->CallGenerateCode(object, lang); 
+	}
+
 
 private :
 
@@ -41,10 +44,12 @@ private :
 		virtual void constr(void*) const = 0;
 		virtual void destruct(void*) const = 0;
 
-		virtual std::string CallGenerateGLSL(void*) const = 0;
+		virtual std::string CallGenerateCode(void* p, const LangSetting& lang) const = 0;
 	};
 
-	struct Dummy {std::string GenerateGLSL() { return std::string(); } };
+	struct Dummy {
+	
+	};
 
 	template<typename T>
 	struct TypeHolder : Base
@@ -52,9 +57,8 @@ private :
 		void constr(void* p) const override { new (p) T; }
 		void destruct(void* p) const override { ((T*)(p))->~T(); }
 
-		std::string CallGenerateGLSL(void* p) const override { return ((T*)(p))->GenerateGLSL(); }
+		std::string CallGenerateCode(void* p, const LangSetting& lang) const override {return ::NodeGenerateCode(lang, *((T*)(p))); }
 	};
-
 
 	char object[Nbytes];
 	char typeHolder[sizeof(TypeHolder<Dummy>)];

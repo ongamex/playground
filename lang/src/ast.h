@@ -2,6 +2,19 @@
 
 #include <iostream>
 #include <vector>
+#include <string>
+
+struct LangSetting
+{
+
+};
+
+template<class T>
+std::string NodeGenerateCode(const LangSetting& lang, T& data) {
+	return std::string();
+}
+
+std::string GenerateCode(const LangSetting& lang, const char* code);
 
 #include "utils/variant.h"
 
@@ -67,6 +80,64 @@ enum FnCallArgType
 	FNAT_InOut,
 };
 
+struct TypeDesc
+{
+	enum Type
+	{
+		Type_Undeduced,
+		Type_NoType,
+	
+		Type_int,
+		Type_float,
+		Type_float2,
+		Type_float3,
+		Type_float4,
+
+		Type_float4x4,
+		Type_UserDefined,
+	};
+
+	TypeDesc(Type type = Type_Undeduced) : m_type(type) { }
+
+	TypeDesc(std::string strType) : m_strType(strType)
+	{
+		if(strType == "int") m_type = Type_int;
+		else if(strType == "float") m_type = Type_float;
+		else if(strType == "float2") m_type = Type_float2;
+		else if(strType == "float3") m_type = Type_float3;
+		else if(strType == "float4") m_type = Type_float4;
+		else if(strType == "float4x4") m_type = Type_float4x4;
+	}
+
+	bool operator==(TypeDesc& other) const
+	{
+		if(m_type != Type_UserDefined) return m_type == other.m_type;
+		return m_strType == other.m_strType;
+	}
+
+	static TypeDesc ResolveType(const TypeDesc& left, const TypeDesc& right)
+	{
+		auto isPairOf = [left, right](Type a, Type b) {
+			return (left.GetType() == a && right.GetType() == b) ||
+					(left.GetType() == b && right.GetType() == a);
+		};
+
+		if(isPairOf(Type_int, Type_float)) return TypeDesc(Type_float);
+		if(isPairOf(Type_float4x4, Type_float4)) return TypeDesc(Type_float4);
+
+		// Unknown expression cofiguration
+		return TypeDesc(Type_NoType);
+	}
+
+	Type GetType() const { return m_type; }
+
+private : 
+
+	Type m_type;
+	std::string m_strType;
+};
+
+
 struct VertexAttribs
 {
 	std::string type;
@@ -101,11 +172,11 @@ struct Node
 	template<typename T>
 	T& As() { return data.As<T>(); }
 
-	std::string GenerateGLSL() {
+	std::string NodeGenerateCode(const LangSetting& lang) {
 
 		if(type == NT_None) return std::string();
 		
-		std::string retval = data.GenerateGLSL();
+		std::string retval = data.NodeGenerateCode(lang);
 
 		if(inParens) retval = '(' + retval +')';
 		if(exprSign != '+') retval = exprSign + retval;
@@ -122,6 +193,8 @@ struct Node
 	bool inParens = false; // True if the expression is surrounded with parens.
 	bool inBlock = false; // True if the statement is surrounded by { }
 	bool hasSemicolon = false; // True if the statement is of kind <--->; 
+
+	TypeDesc expressionType;
 };
 
 struct Ast
@@ -136,6 +209,13 @@ struct Ast
 		return add(new Node((NodeType)T::MyNodeType, t));
 	}
 
+	void PrepassDecl()
+	{
+		
+		std::vector<std::string> scope;
+
+	};
+
 	Node* program;
 	std::vector<Node*> nodes;
 
@@ -148,32 +228,49 @@ struct Ast
 //-------------------------------------------------------------------------
 //
 //-------------------------------------------------------------------------
-struct EmptyNode
-{
-	enum { MyNodeType = NT_None };
-};
-
-
-struct Ident
-{
+struct Ident {
 	enum { MyNodeType = NT_Identifier };
-
 	std::string identifier;
-
-	std::string GenerateGLSL() {
-		return identifier;
-	}
 };
 
-struct ExprVar
+//---------------------------------------------------------------------------------
+// Expressions
+//---------------------------------------------------------------------------------
+
+// Binary expression of kind: a ? b
+struct ExprBin
 {
-	struct Node* identNode;
+	enum { MyNodeType = NT_ExprBin };
 
-	std::string GenerateGLSL() {
-		return identNode->As<Ident>().GenerateGLSL();
-	}
+	ExprBin() = default;
+
+	ExprBin(ExprBinType type, Node* left, Node* right) :
+		type(type), left(left), right(right)
+	{}
+
+	ExprBinType type;
+	Node* left;
+	Node* right;
 };
 
+// Function calls in expressions.
+
+struct FuncCallArgs
+{
+	enum { MyNodeType = NT_FuncCallArgs };
+
+	std::vector<Node*> args;
+};
+
+struct FuncCall
+{
+	enum { MyNodeType = NT_FuncCall };
+
+	std::string fnName;
+	Node* args;
+};
+
+// Literal value
 struct ExprLiteral
 {
 	enum { MyNodeType = NT_ExprLiteral };
@@ -189,82 +286,17 @@ struct ExprLiteral
 	ExprLiteral() : type(EL_Unknown) {}
 	ExprLiteral(float f) : type(EL_Float), float_val(f) {}
 	ExprLiteral(int i) : type(EL_Int), int_val(i) {}
-
-	std::string GenerateGLSL()
-	{
-		char buff[64] = {0};
-
-		if(type == EL_Float)
-		{
-			
-			sprintf(buff, "%f", float_val);
-
-			// kill the trailing zeroes.
-			for(int t = strlen(buff);t > 1; --t){
-				if(buff[t] == '0' && buff[t-1] == '0') {
-					buff[t] = '\0';
-				}
-				if(buff[t] == '.') break;
-			}
-
-			return buff;
-		}
-		else if(type == EL_Int)
-		{
-			sprintf(buff, "%d", int_val);
-			return buff;
-		}
-
-		return "???";
-	}
 };
 
-struct ExprBin
-{
-	enum { MyNodeType = NT_ExprBin };
-
-	ExprBin() = default;
-
-	ExprBin(ExprBinType type, Node* left, Node* right) :
-		type(type), left(left), right(right)
-	{}
-
-	ExprBinType type;
-	Node* left;
-	Node* right;
-
-	std::string GenerateGLSL() {
-		switch(type) {
-			case EBT_Add :      return left->GenerateGLSL() + (" + ") + right->GenerateGLSL();
-			case EBT_Sub :      return left->GenerateGLSL() + (" - ") + right->GenerateGLSL();
-			case EBT_MatMul :   return "mul(" + left->GenerateGLSL() + "," + right->GenerateGLSL() + ")"; 
-			case EBT_Mul :      return left->GenerateGLSL() + (" * ") + right->GenerateGLSL();
-			case EBT_Div :      return left->GenerateGLSL() + (" / ") + right->GenerateGLSL();
-			case EBT_Greater :  return left->GenerateGLSL() + (" > ") + right->GenerateGLSL();
-			case EBT_GEquals :  return left->GenerateGLSL() + (" >= ") + right->GenerateGLSL();
-			case EBT_Less :     return left->GenerateGLSL() + (" < ") + right->GenerateGLSL();
-			case EBT_LEquals :  return left->GenerateGLSL() + (" <= ") + right->GenerateGLSL();
-			case EBT_Equals :   return left->GenerateGLSL() + (" == ") + right->GenerateGLSL();
-			case EBT_NEquals :  return left->GenerateGLSL() + (" != ") + right->GenerateGLSL();
-			case EBT_Or :       return left->GenerateGLSL() + (" || ") + right->GenerateGLSL();
-			case EBT_And :      return left->GenerateGLSL() + (" && ") + right->GenerateGLSL();
-			default :           return left->GenerateGLSL() + (" ??? ") + right->GenerateGLSL();
-		}
-
-		return "expr ??? expr";
-	}
-};
-
+//---------------------------------------------------------------------------------
+// Statements
+//---------------------------------------------------------------------------------
 struct Assign
 {
 	enum { MyNodeType = NT_Assign };
 
 	std::string ident;
 	Node* expr;
-
-	std::string GenerateGLSL() {
-		return ident + " = " + expr->GenerateGLSL();
-	}
 };
 
 struct StmtIf
@@ -277,13 +309,6 @@ struct StmtIf
 	Node* expr = nullptr;
 	Node* trueStmt = nullptr;
 	Node* falseStmt = nullptr; // optional
-
-	std::string GenerateGLSL() {
-		std::string retval = " if(" + expr->GenerateGLSL() + ")";
-		if(trueStmt) retval += trueStmt->GenerateGLSL(); else retval += ';';
-		if(falseStmt) retval += "else " + falseStmt->GenerateGLSL();
-		return retval;
-	}
 };
 
 struct StmtWhile
@@ -295,12 +320,6 @@ struct StmtWhile
 
 	Node* expr = nullptr;
 	Node* bodyStmt = nullptr;
-
-	std::string GenerateGLSL() {
-		std::string retval = " while(" + expr->GenerateGLSL() + ")";
-		if(bodyStmt) retval += bodyStmt->GenerateGLSL(); else retval += ';';
-		return retval;
-	}
 };
 
 struct StmtFor
@@ -311,33 +330,13 @@ struct StmtFor
 	Node* boolExpr;
 	Node* postExpr;
 	Node* stmt;
-
-	std::string GenerateGLSL() {
-		std::string retval = "for(";
-		if(vardecl) retval += vardecl->GenerateGLSL(); retval += ';';
-		if(boolExpr) retval += boolExpr->GenerateGLSL(); retval += ';';
-		if(postExpr) retval += postExpr->GenerateGLSL(); 
-		retval += ')';
-
-		retval += stmt->GenerateGLSL();
-
-		return retval;
-	}
 };
-
 
 struct NodeList
 {
 	enum { MyNodeType = NT_NtList };
 
 	std::vector<Node*> nodes;
-
-	std::string GenerateGLSL()
-	{
-		std::string retval;
-		for(auto& node : nodes) retval += node->GenerateGLSL();
-		return retval;
-	}
 };
 
 struct VarDecl
@@ -347,22 +346,6 @@ struct VarDecl
 	std::string type;
 	std::vector<std::string> ident;
 	std::vector<Node*> expr;
-
-	std::string GenerateGLSL()
-	{
-		std::string retval = type + " ";
-
-		for(int t = 0; t < ident.size(); ++t)
-		{
-			retval += ident[t];
-			if(expr[t]) {
-				retval += "=" + expr[t]->GenerateGLSL();
-				if(t < ident.size() - 1) retval += ',';
-			}
-		}
-
-		return retval;
-	}
 };
 
 struct FnDeclArgVarDecl
@@ -374,16 +357,6 @@ struct FnDeclArgVarDecl
 	Node* expr;
 	FnCallArgType argType; //in/out/inout.
 
-	std::string GenerateGLSL() {
-		std::string retval;
-		if(argType == FNAT_InOut) retval += "inout ";
-		if(argType == FNAT_Out) retval += "out ";
-
-		retval += type + " " + ident;
-		if(expr) retval += "=" + expr->GenerateGLSL();
-		return retval;
-	}
-
 };
 
 struct FnDeclArgs
@@ -392,19 +365,9 @@ struct FnDeclArgs
 
 	std::vector<Node*> args;
 
-	std::string GenerateGLSL() {
-		
-		std::string retval;
-
-		for(int t = 0; t < args.size(); ++t) {
-			retval += args[t]->GenerateGLSL();
-			if(t < args.size() - 1) retval += ',';
-		}
-
-		return retval;
-	}
 };
 
+//[TODO] This could be embedded into FnDeclArgs.
 struct FuncDecl
 {
 	enum { MyNodeType = NT_FuncDecl };
@@ -413,48 +376,6 @@ struct FuncDecl
 	std::string name;
 	Node* args;
 	Node* stmt;
-
-	std::string GenerateGLSL() {
-
-		std::string retval = retType + " " + name + "(";
-		if(args) retval += args->GenerateGLSL();
-		retval += "){ " + stmt->GenerateGLSL() + "}";
-
-		return retval;
-	}
-};
-
-struct FuncCallArgs
-{
-	enum { MyNodeType = NT_FuncCallArgs };
-
-	std::vector<Node*> args;
-
-	std::string GenerateGLSL() {
-		std::string retval;
-
-		for(int t = 0; t < args.size(); ++t) {
-			retval += args[t]->GenerateGLSL();
-			if(t < args.size() - 1) retval += ",";
-		}
-
-		return retval;
-	}
-};
-
-struct FuncCall
-{
-	enum { MyNodeType = NT_FuncCall };
-
-	std::string fnName;
-	Node* args;
-
-	std::string GenerateGLSL() {
-		std::string retval = fnName + '(';
-		if(args) retval += args->GenerateGLSL();
-		retval += ')';
-		return retval;
-	}
 };
 
 struct ProgramElem
@@ -462,14 +383,35 @@ struct ProgramElem
 	enum { MyNodeType = NT_ProgramElem };
 
 	std::vector<Node*> nodes;
-
-	std::string GenerateGLSL() {
-		std::string retval;
-
-		for(const auto& node : nodes) {
-			retval += node->GenerateGLSL();
-		}
-
-		return retval;
-	}
 };
+
+template<>
+std::string NodeGenerateCode<Ident>(const LangSetting& lang, Ident& data);
+template<>
+std::string NodeGenerateCode<ExprBin>(const LangSetting& lang, ExprBin& data);
+template<>
+std::string NodeGenerateCode<FuncCallArgs>(const LangSetting& lang, FuncCallArgs& data);
+template<>
+std::string NodeGenerateCode<FuncCall>(const LangSetting& lang, FuncCall& data);
+template<>
+std::string NodeGenerateCode<ExprLiteral>(const LangSetting& lang, ExprLiteral& data);
+template<>
+std::string NodeGenerateCode<Assign>(const LangSetting& lang, Assign& data);
+template<>
+std::string NodeGenerateCode<StmtIf>(const LangSetting& lang, StmtIf& data);
+template<>
+std::string NodeGenerateCode<StmtWhile>(const LangSetting& lang, StmtWhile& data);
+template<>
+std::string NodeGenerateCode<StmtFor>(const LangSetting& lang, StmtFor& data);
+template<>
+std::string NodeGenerateCode<NodeList>(const LangSetting& lang, NodeList& data);
+template<>
+std::string NodeGenerateCode<VarDecl>(const LangSetting& lang, VarDecl& data);
+template<>
+std::string NodeGenerateCode<FnDeclArgVarDecl>(const LangSetting& lang, FnDeclArgVarDecl& data);
+template<>
+std::string NodeGenerateCode<FnDeclArgs>(const LangSetting& lang, FnDeclArgs& data);
+template<>
+std::string NodeGenerateCode<FuncDecl>(const LangSetting& lang, FuncDecl& data);
+template<>
+std::string NodeGenerateCode<ProgramElem>(const LangSetting& lang, ProgramElem& data);

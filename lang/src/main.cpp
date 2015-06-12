@@ -1,13 +1,6 @@
 #include <iostream>
 #include "ast.h"
 
-bool LangParseExpression(const char* code, Ast* ast);
-
-std::string GenerateGLSL(const Ast* ast)
-{
-	return ast->program->GenerateGLSL();
-}
-
 std::string FormatCode(const char* code)
 {
 	std::string retval;
@@ -76,12 +69,8 @@ void f() {
 }
 
 )";
+	std::string formatted = FormatCode(GenerateCode(LangSetting(), code).c_str());
 
-	LangParseExpression(code, &ast);
-
-	std::string formatted = FormatCode(GenerateGLSL(&ast).c_str());
-
-//	ast.nodes.back()->printMe(00);
 	std::cout << formatted;
 	std::cin.get();
 	return 0;

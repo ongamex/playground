@@ -28,7 +28,6 @@ enum NodeType
 	NT_Assign,
 
 	NT_FuncCall,
-	NT_FuncCallArgs, // a sub node specially created for function call expresions
 
 	// Statements
 	NT_If,
@@ -38,6 +37,8 @@ enum NodeType
 	NT_Identifier,
 	NT_VarDecl,
 
+	NT_StmtList,
+
 	NT_Type,
 
 	NT_FuncDecl,
@@ -46,7 +47,7 @@ enum NodeType
 
 	NT_ProgramElem,
 
-	NT_NtList, // a list of nodes
+	
 };
 
 enum ExprLiteralType
@@ -255,19 +256,12 @@ struct ExprBin
 
 // Function calls in expressions.
 
-struct FuncCallArgs
-{
-	enum { MyNodeType = NT_FuncCallArgs };
-
-	std::vector<Node*> args;
-};
-
 struct FuncCall
 {
 	enum { MyNodeType = NT_FuncCall };
 
 	std::string fnName;
-	Node* args;
+	std::vector<Node*> args;
 };
 
 // Literal value
@@ -332,9 +326,9 @@ struct StmtFor
 	Node* stmt;
 };
 
-struct NodeList
+struct StmtList
 {
-	enum { MyNodeType = NT_NtList };
+	enum { MyNodeType = NT_StmtList };
 
 	std::vector<Node*> nodes;
 };
@@ -359,24 +353,17 @@ struct FnDeclArgVarDecl
 
 };
 
-struct FnDeclArgs
-{
-	enum { MyNodeType = NT_FuncDeclArgs };
-
-	std::vector<Node*> args;
-
-};
-
-//[TODO] This could be embedded into FnDeclArgs.
 struct FuncDecl
 {
 	enum { MyNodeType = NT_FuncDecl };
 
+	std::vector<Node*> args;
 	std::string retType;
 	std::string name;
-	Node* args;
-	Node* stmt;
+
+	Node* stmt; // the body of the function.
 };
+
 
 struct ProgramElem
 {
@@ -390,8 +377,6 @@ std::string NodeGenerateCode<Ident>(const LangSetting& lang, Ident& data);
 template<>
 std::string NodeGenerateCode<ExprBin>(const LangSetting& lang, ExprBin& data);
 template<>
-std::string NodeGenerateCode<FuncCallArgs>(const LangSetting& lang, FuncCallArgs& data);
-template<>
 std::string NodeGenerateCode<FuncCall>(const LangSetting& lang, FuncCall& data);
 template<>
 std::string NodeGenerateCode<ExprLiteral>(const LangSetting& lang, ExprLiteral& data);
@@ -404,13 +389,11 @@ std::string NodeGenerateCode<StmtWhile>(const LangSetting& lang, StmtWhile& data
 template<>
 std::string NodeGenerateCode<StmtFor>(const LangSetting& lang, StmtFor& data);
 template<>
-std::string NodeGenerateCode<NodeList>(const LangSetting& lang, NodeList& data);
+std::string NodeGenerateCode<StmtList>(const LangSetting& lang, StmtList& data);
 template<>
 std::string NodeGenerateCode<VarDecl>(const LangSetting& lang, VarDecl& data);
 template<>
 std::string NodeGenerateCode<FnDeclArgVarDecl>(const LangSetting& lang, FnDeclArgVarDecl& data);
-template<>
-std::string NodeGenerateCode<FnDeclArgs>(const LangSetting& lang, FnDeclArgs& data);
 template<>
 std::string NodeGenerateCode<FuncDecl>(const LangSetting& lang, FuncDecl& data);
 template<>

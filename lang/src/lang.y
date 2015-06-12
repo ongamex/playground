@@ -99,15 +99,26 @@ fndecl_vardecl_var :
 	;
 	
 	// A list of variables for the function declaration.
+	// This must be used only for function declaration variables.
+	// Basically this create the function declaration node.
+	// the node is later finished by function_decl rule.
 fndecl_vardecl : 
-		fndecl_vardecl_var						{ $$ = ast->push<FnDeclArgs>({{$1}}); }
-	|	fndecl_vardecl ',' fndecl_vardecl_var	{ $1->As<FnDeclArgs>().args.push_back($3); $$ = $1; }
+												{ $$ = ast->push<FuncDecl>(); }
+	|	fndecl_vardecl_var						{ $$ = ast->push<FuncDecl>({{$1}}); }
+	|	fndecl_vardecl ',' fndecl_vardecl_var	{ $1->As<FuncDecl>().args.push_back($3); $$ = $1; }
 
 	
 	// The function delectation itself.
+	// fndecl_vardecl create the function call node, 
+	// we need to just add the return type name and statement.
 function_decl : 
-	IDENT IDENT '(' fndecl_vardecl ')' '{' stmt_list '}'	{ $$ = ast->push<FuncDecl>({$1, $2, $4, $7}); }
-	| IDENT IDENT '(' ')' stmt_list							{ $$ = ast->push<FuncDecl>({$1, $2, nullptr, $5}); }
+	IDENT IDENT '(' fndecl_vardecl ')' '{' stmt_list '}'	{ 
+		auto& funcDecl = $4->As<FuncDecl>();
+		funcDecl.retType = $1;
+		funcDecl.name = $2;
+		funcDecl.stmt = $7;
+		$$ = $4;
+	}
 	;
 	
 	//-------------------------------------------------
@@ -145,18 +156,18 @@ stmt :
 	|	'{' stmt_list '}' 							{ $2->inBlock = true; $$ = $2; }
 	;
 
-	// A list of statements.
-stmt_list : 
-		stmt 				{ $$ = ast->push<NodeList>({}); $$->As<NodeList>().nodes.push_back($1); }
-	|	stmt_list stmt 		{ 
-			$$ = $1;
-			$1->As<NodeList>().nodes.push_back( {$2} );
-		}
-	;
-	
-	//[TODO] This should become something like expr = expr at least because of array indexing.
+		//[TODO] This should become something like expr = expr at least because of array indexing.
 assign_stmt : 
 		IDENT '=' expr				{ $$ = ast->push<Assign>({$1.c_str(), $3}); }
+	;
+	
+	// A list of statements.
+stmt_list : 
+		stmt 				{ $$ = ast->push<StmtList>({}); $$->As<StmtList>().nodes.push_back($1); }
+	|	stmt_list stmt 		{ 
+			$$ = $1;
+			$1->As<StmtList>().nodes.push_back( {$2} );
+		}
 	;
 	
 	//-------------------------------------------------
@@ -186,14 +197,23 @@ expr :
 	
 	// Function arguments as a list.
 fncall_args :
-		expr					{ $$ = ast->push<FuncCallArgs>({{$1}}); }
-	|	fncall_args ',' expr 	{ $1->As<FuncCallArgs>().args.push_back($3); $$ = $1; }
+			{ $$ = ast->push<FuncCall>(); }
+		| 	expr
+			{ 
+				Node* fnCall = ast->push<FuncCall>();
+				fnCall->As<FuncCall>().args.push_back($1); 
+				$$ = fnCall;
+			}
+		
+	|	fncall_args ',' expr 	{ $1->As<FuncCall>().args.push_back($3); $$ = $1; }
 	
 	// The function call expression itself.
 expr_fncall :
-		IDENT '(' fncall_args ')'	{ $$ = ast->push<FuncCall>({$1, $3}); }
-	|	IDENT '(' ')' 				{ $$ = ast->push<FuncCall>({$1, nullptr}); }
-
+		IDENT '(' fncall_args ')'	{ 
+			$3->As<FuncCall>().fnName = $1;
+			$$ = $3; 
+		}
+	;
 	//--------------------------------------------
 	//
 	//--------------------------------------------

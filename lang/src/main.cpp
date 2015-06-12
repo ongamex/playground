@@ -15,7 +15,7 @@ std::string FormatCode(const char* code)
 		const char ch = *code;
 
 		if(ch == '{') {
-			retval += "{\n"; tabs++;
+			retval += " {\n"; tabs++;
 			addIdent();
 		}
 		else if(ch == '}')
@@ -26,8 +26,8 @@ std::string FormatCode(const char* code)
 			retval += "}\n";
 			addIdent();
 		}
-		else if(ch == '\n') {
-			retval += '\n'; addIdent();
+		else if(ch == ';') {
+			retval += ";\n"; addIdent();
 		}
 		else if(ch == ',') {
 			retval += ", ";
@@ -57,7 +57,7 @@ void f(inout int x, out int y, in void z, int x) {
 		if (x >= 10) x = 5;
 	}
 	
-
+	y = bar();
 	x = foo(x+3,1,3*4*foo()) * mul(mul(3+4,foo(5)), x);
 }
 

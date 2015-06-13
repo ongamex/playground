@@ -61,7 +61,8 @@ void f(inout int x, out int y, in void z, int x) {
 	x = foo(x+3,1,3*4*foo()) * mul(mul(3+4,foo(5)), x);
 }
 
-void f() {
+void fo() {
+	float a,b,c=1,d;
 	int x = 1.0;
 	for(int t = 0; t < 10; 1+t) {
 		printf(bla);

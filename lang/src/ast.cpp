@@ -2,16 +2,41 @@
 
 #include "ast.h"
 
-//-----------------------------------------------------------------------
-//
-//-----------------------------------------------------------------------
+void Node::NodeDeclare(Ast* ast) {
+	if(inBlock) ast->declPushScope();
+	data.NodeDelcare(ast);
+	if(inBlock) ast->declPopScope();
+}
 
+Ast::FullVariableDesc Ast::declareVariable(const TypeDesc& td, std::string name)
+{
+	FullVariableDesc fvd;
+	fvd.type = td;
+
+	for(auto s : scope) {
+		fvd.fullName += s + '.';
+		fvd.depth++;
+	}
+
+	fvd.fullName += name;
+
+	declaredVariables.push_back(fvd);
+
+	return fvd;
+}
+
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
 template<>
 std::string NodeGenerateCode<Ident>(const LangSetting& lang, Ident& data)
 {
 	return data.identifier;
 }
 
+//-----------------------------------------------------------------------
+//
+//-----------------------------------------------------------------------
 template<>
 std::string NodeGenerateCode<ExprBin>(const LangSetting& lang, ExprBin& data)
 {
@@ -38,6 +63,9 @@ std::string NodeGenerateCode<ExprBin>(const LangSetting& lang, ExprBin& data)
 	return "expr ??? expr";
 }
 
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
 template<>
 std::string NodeGenerateCode<FuncCall>(const LangSetting& lang, FuncCall& data)
 {
@@ -53,6 +81,9 @@ std::string NodeGenerateCode<FuncCall>(const LangSetting& lang, FuncCall& data)
 	return retval;
 }
 
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
 template<>
 std::string NodeGenerateCode<ExprLiteral>(const LangSetting& lang, ExprLiteral& data)
 {
@@ -80,12 +111,18 @@ std::string NodeGenerateCode<ExprLiteral>(const LangSetting& lang, ExprLiteral& 
 	return "???";
 }
 
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
 template<>
 std::string NodeGenerateCode<Assign>(const LangSetting& lang, Assign& data)
 {
 	return data.ident + " = " + data.expr->NodeGenerateCode(lang);
 }
 
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
 template<>
 std::string NodeGenerateCode<StmtIf>(const LangSetting& lang, StmtIf& data)
 {
@@ -95,6 +132,26 @@ std::string NodeGenerateCode<StmtIf>(const LangSetting& lang, StmtIf& data)
 	return retval;
 }
 
+template<> void NodeDeclare<StmtIf>(Ast* ast, StmtIf& data)
+{
+	if(data.trueStmt)
+	{
+		ast->declPushScope();
+		data.trueStmt->NodeDeclare(ast);
+		ast->declPopScope();
+	}
+
+	if(data.falseStmt)
+	{
+		ast->declPushScope();
+		data.falseStmt->NodeDeclare(ast);
+		ast->declPopScope();
+	}
+}
+
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
 template<>
 std::string NodeGenerateCode<StmtWhile>(const LangSetting& lang, StmtWhile& data)
 {
@@ -104,6 +161,19 @@ std::string NodeGenerateCode<StmtWhile>(const LangSetting& lang, StmtWhile& data
 	return retval;
 }
 
+template<> void NodeDeclare<StmtWhile>(Ast* ast, StmtWhile& data)
+{
+	if(data.bodyStmt)
+	{
+		ast->declPushScope();
+		data.bodyStmt->NodeDeclare(ast);
+		ast->declPopScope();
+	}
+}
+
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
 template<>
 std::string NodeGenerateCode<StmtFor>(const LangSetting& lang, StmtFor& data)
 {
@@ -117,6 +187,26 @@ std::string NodeGenerateCode<StmtFor>(const LangSetting& lang, StmtFor& data)
 	return retval;
 }
 
+template<> void NodeDeclare<StmtFor>(Ast* ast, StmtFor& data)
+{
+	if(data.vardecl)
+	{
+		ast->declPushScope();
+		data.vardecl->NodeDeclare(ast);
+		ast->declPopScope();
+	}
+
+	if(data.stmt) 
+	{
+		ast->declPushScope();
+		data.stmt->NodeDeclare(ast);
+		ast->declPopScope();
+	}
+}
+
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
 template<>
 std::string NodeGenerateCode<StmtList>(const LangSetting& lang, StmtList& data)
 {
@@ -125,10 +215,18 @@ std::string NodeGenerateCode<StmtList>(const LangSetting& lang, StmtList& data)
 	return retval;
 }
 
+template<> void NodeDeclare<StmtList>(Ast* ast, StmtList& data)
+{
+	for(auto& node : data.nodes) node->NodeDeclare(ast);
+}
+
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
 template<>
 std::string NodeGenerateCode<VarDecl>(const LangSetting& lang, VarDecl& data)
 {
-	std::string retval = data.type + " ";
+	std::string retval = data.type.GetTypeAsString() + " ";
 
 	for(int t = 0; t < data.ident.size(); ++t)
 	{
@@ -142,6 +240,17 @@ std::string NodeGenerateCode<VarDecl>(const LangSetting& lang, VarDecl& data)
 	return retval;
 }
 
+template<> void NodeDeclare<VarDecl>(Ast* ast, VarDecl& data)
+{
+	for(int t = 0; t < data.ident.size(); ++t) {
+		ast->declareVariable(data.type, data.ident[t]);
+	}
+}
+
+
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
 template<>
 std::string NodeGenerateCode<FnDeclArgVarDecl>(const LangSetting& lang, FnDeclArgVarDecl& data)
 {
@@ -149,15 +258,23 @@ std::string NodeGenerateCode<FnDeclArgVarDecl>(const LangSetting& lang, FnDeclAr
 	if(data.argType == FNAT_InOut) retval += "inout ";
 	if(data.argType == FNAT_Out) retval += "out ";
 
-	retval += data.type + " " + data.ident;
+	retval += data.type.GetTypeAsString() + " " + data.ident;
 	if(data.expr) retval += "=" + data.expr->NodeGenerateCode(lang);
 	return retval;
 }
 
 template<>
+void NodeDeclare(Ast* ast, FnDeclArgVarDecl& data) {
+	ast->declareVariable(data.type, data.ident);
+}
+
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
+template<>
 std::string NodeGenerateCode<FuncDecl>(const LangSetting& lang, FuncDecl& data)
 {
-	std::string retval = data.retType + " " + data.name + "(";
+	std::string retval = data.retType.GetTypeAsString() + " " + data.name + "(";
 
 	for(int t = 0; t < data.args.size(); ++t) {
 		
@@ -172,6 +289,20 @@ std::string NodeGenerateCode<FuncDecl>(const LangSetting& lang, FuncDecl& data)
 }
 
 template<>
+void NodeDeclare<FuncDecl>(Ast* ast, FuncDecl& data)
+{
+	ast->declPushScope(data.name);
+
+	for(auto& var : data.args) var->NodeDeclare(ast);
+	data.stmt->NodeDeclare(ast);
+
+	ast->declPopScope();
+}
+
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
+template<>
 std::string NodeGenerateCode<ProgramElem>(const LangSetting& lang, ProgramElem& data)
 {
 	std::string retval;
@@ -183,6 +314,17 @@ std::string NodeGenerateCode<ProgramElem>(const LangSetting& lang, ProgramElem& 
 	return retval;
 }
 
+template<>
+void NodeDeclare<ProgramElem>(Ast* ast, ProgramElem& data)
+{
+	for(auto& node : data.nodes) {
+		node->NodeDeclare(ast);
+	}
+}
+
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
 
 // Declared in lang.y
 bool LangParseExpression(const char* code, Ast* ast);
@@ -191,5 +333,6 @@ std::string GenerateCode(const LangSetting& lang, const char* code)
 {
 	Ast ast;
 	LangParseExpression(code, &ast);
+	ast.program->NodeDeclare(&ast);
 	return ast.program->NodeGenerateCode(lang);
 }

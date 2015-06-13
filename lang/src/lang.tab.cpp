@@ -429,10 +429,10 @@ static const yytype_uint8 yyrline[] =
 {
        0,    50,    50,    53,    54,    59,    70,    80,    81,    82,
       91,    92,    93,    94,    95,    96,    97,    98,   106,   107,
-     108,   115,   130,   131,   132,   133,   141,   149,   150,   151,
-     152,   153,   154,   155,   156,   161,   166,   167,   177,   178,
-     179,   180,   181,   182,   183,   184,   185,   186,   187,   188,
-     189,   190,   191,   192,   193,   194,   200,   201,   208,   212
+     108,   115,   131,   132,   133,   134,   142,   150,   151,   152,
+     153,   154,   155,   156,   157,   162,   167,   168,   178,   179,
+     180,   181,   182,   183,   184,   185,   186,   187,   188,   189,
+     190,   191,   192,   193,   194,   195,   201,   202,   209,   213
 };
 #endif
 
@@ -1386,49 +1386,49 @@ yyreduce:
 
   case 10:
 #line 91 "lang.y" /* yacc.c:1646  */
-    { (yyval.node) = ast->push<FnDeclArgVarDecl>({(yyvsp[-1].str_val), (yyvsp[0].str_val), nullptr, FNAT_In      }); }
+    { (yyval.node) = ast->push<FnDeclArgVarDecl>({TypeDesc((yyvsp[-1].str_val)), (yyvsp[0].str_val), nullptr, FNAT_In      }); }
 #line 1391 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 11:
 #line 92 "lang.y" /* yacc.c:1646  */
-    { (yyval.node) = ast->push<FnDeclArgVarDecl>({(yyvsp[-3].str_val), (yyvsp[-2].str_val), (yyvsp[0].node)     , FNAT_In      }); }
+    { (yyval.node) = ast->push<FnDeclArgVarDecl>({TypeDesc((yyvsp[-3].str_val)), (yyvsp[-2].str_val), (yyvsp[0].node)     , FNAT_In      }); }
 #line 1397 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 12:
 #line 93 "lang.y" /* yacc.c:1646  */
-    { (yyval.node) = ast->push<FnDeclArgVarDecl>({(yyvsp[-1].str_val), (yyvsp[0].str_val), nullptr, FNAT_In	  }); }
+    { (yyval.node) = ast->push<FnDeclArgVarDecl>({TypeDesc((yyvsp[-1].str_val)), (yyvsp[0].str_val), nullptr, FNAT_In	    }); }
 #line 1403 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 13:
 #line 94 "lang.y" /* yacc.c:1646  */
-    { (yyval.node) = ast->push<FnDeclArgVarDecl>({(yyvsp[-3].str_val), (yyvsp[-2].str_val), (yyvsp[0].node)     , FNAT_In	  }); }
+    { (yyval.node) = ast->push<FnDeclArgVarDecl>({TypeDesc((yyvsp[-3].str_val)), (yyvsp[-2].str_val), (yyvsp[0].node)     , FNAT_In	    }); }
 #line 1409 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 14:
 #line 95 "lang.y" /* yacc.c:1646  */
-    { (yyval.node) = ast->push<FnDeclArgVarDecl>({(yyvsp[-1].str_val), (yyvsp[0].str_val), nullptr, FNAT_Out     }); }
+    { (yyval.node) = ast->push<FnDeclArgVarDecl>({TypeDesc((yyvsp[-1].str_val)), (yyvsp[0].str_val), nullptr, FNAT_Out     }); }
 #line 1415 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 15:
 #line 96 "lang.y" /* yacc.c:1646  */
-    { (yyval.node) = ast->push<FnDeclArgVarDecl>({(yyvsp[-3].str_val), (yyvsp[-2].str_val), (yyvsp[0].node)     , FNAT_Out     }); }
+    { (yyval.node) = ast->push<FnDeclArgVarDecl>({TypeDesc((yyvsp[-3].str_val)), (yyvsp[-2].str_val), (yyvsp[0].node)     , FNAT_Out     }); }
 #line 1421 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 16:
 #line 97 "lang.y" /* yacc.c:1646  */
-    { (yyval.node) = ast->push<FnDeclArgVarDecl>({(yyvsp[-1].str_val), (yyvsp[0].str_val), nullptr, FNAT_InOut   }); }
+    { (yyval.node) = ast->push<FnDeclArgVarDecl>({TypeDesc((yyvsp[-1].str_val)), (yyvsp[0].str_val), nullptr, FNAT_InOut   }); }
 #line 1427 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 17:
 #line 98 "lang.y" /* yacc.c:1646  */
-    { (yyval.node) = ast->push<FnDeclArgVarDecl>({(yyvsp[-3].str_val), (yyvsp[-2].str_val), (yyvsp[0].node)     , FNAT_InOut   }); }
+    { (yyval.node) = ast->push<FnDeclArgVarDecl>({TypeDesc((yyvsp[-3].str_val)), (yyvsp[-2].str_val), (yyvsp[0].node)     , FNAT_InOut   }); }
 #line 1433 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
@@ -1454,7 +1454,7 @@ yyreduce:
 #line 115 "lang.y" /* yacc.c:1646  */
     { 
 		auto& funcDecl = (yyvsp[-4].node)->As<FuncDecl>();
-		funcDecl.retType = (yyvsp[-7].str_val);
+		funcDecl.retType = TypeDesc((yyvsp[-7].str_val));
 		funcDecl.name = (yyvsp[-6].str_val);
 		funcDecl.stmt = (yyvsp[-1].node);
 		(yyval.node) = (yyvsp[-4].node);
@@ -1463,25 +1463,25 @@ yyreduce:
     break;
 
   case 22:
-#line 130 "lang.y" /* yacc.c:1646  */
-    { (yyval.node) = ast->push<VarDecl>({"unk", {(yyvsp[0].str_val)}, {nullptr}}); }
+#line 131 "lang.y" /* yacc.c:1646  */
+    { (yyval.node) = ast->push<VarDecl>({TypeDesc(), {(yyvsp[0].str_val)}, {nullptr}}); }
 #line 1469 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 23:
-#line 131 "lang.y" /* yacc.c:1646  */
-    { (yyval.node) = ast->push<VarDecl>({"unk", {(yyvsp[-2].str_val)}, {(yyvsp[0].node)}}); }
+#line 132 "lang.y" /* yacc.c:1646  */
+    { (yyval.node) = ast->push<VarDecl>({TypeDesc(), {(yyvsp[-2].str_val)}, {(yyvsp[0].node)}}); }
 #line 1475 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 24:
-#line 132 "lang.y" /* yacc.c:1646  */
+#line 133 "lang.y" /* yacc.c:1646  */
     { (yyval.node)->As<VarDecl>().ident.push_back((yyvsp[0].str_val));	}
 #line 1481 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 25:
-#line 133 "lang.y" /* yacc.c:1646  */
+#line 134 "lang.y" /* yacc.c:1646  */
     { 
 			(yyval.node) = (yyvsp[-4].node); 
 			(yyval.node)->As<VarDecl>().ident.push_back((yyvsp[-2].str_val));
@@ -1491,73 +1491,73 @@ yyreduce:
     break;
 
   case 26:
-#line 141 "lang.y" /* yacc.c:1646  */
-    { (yyvsp[0].node)->As<VarDecl>().type = (yyvsp[-1].str_val); (yyval.node) = (yyvsp[0].node); }
+#line 142 "lang.y" /* yacc.c:1646  */
+    { (yyvsp[0].node)->As<VarDecl>().type = TypeDesc((yyvsp[-1].str_val)); (yyval.node) = (yyvsp[0].node); }
 #line 1497 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 27:
-#line 149 "lang.y" /* yacc.c:1646  */
+#line 150 "lang.y" /* yacc.c:1646  */
     { (yyvsp[-1].node)->hasSemicolon = true; ; (yyval.node) = (yyvsp[-1].node); }
 #line 1503 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 28:
-#line 150 "lang.y" /* yacc.c:1646  */
+#line 151 "lang.y" /* yacc.c:1646  */
     { (yyvsp[-1].node)->hasSemicolon = true; (yyval.node) = (yyvsp[-1].node); }
 #line 1509 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 29:
-#line 151 "lang.y" /* yacc.c:1646  */
+#line 152 "lang.y" /* yacc.c:1646  */
     { (yyvsp[-1].node)->hasSemicolon = true; (yyval.node) = (yyvsp[-1].node); }
 #line 1515 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 30:
-#line 152 "lang.y" /* yacc.c:1646  */
+#line 153 "lang.y" /* yacc.c:1646  */
     { (yyval.node) = ast->push(StmtFor{(yyvsp[-6].node), (yyvsp[-4].node), (yyvsp[-2].node), (yyvsp[0].node)}); }
 #line 1521 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 31:
-#line 153 "lang.y" /* yacc.c:1646  */
+#line 154 "lang.y" /* yacc.c:1646  */
     { (yyval.node) = ast->push(StmtWhile{(yyvsp[-2].node), (yyvsp[0].node)}); }
 #line 1527 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 32:
-#line 154 "lang.y" /* yacc.c:1646  */
+#line 155 "lang.y" /* yacc.c:1646  */
     { (yyval.node) = ast->push(StmtIf((yyvsp[-2].node), (yyvsp[0].node), nullptr)); }
 #line 1533 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 33:
-#line 155 "lang.y" /* yacc.c:1646  */
+#line 156 "lang.y" /* yacc.c:1646  */
     { (yyval.node) = ast->push(StmtIf((yyvsp[-4].node), (yyvsp[-2].node), (yyvsp[0].node))); }
 #line 1539 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 34:
-#line 156 "lang.y" /* yacc.c:1646  */
+#line 157 "lang.y" /* yacc.c:1646  */
     { (yyvsp[-1].node)->inBlock = true; (yyval.node) = (yyvsp[-1].node); }
 #line 1545 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 35:
-#line 161 "lang.y" /* yacc.c:1646  */
+#line 162 "lang.y" /* yacc.c:1646  */
     { (yyval.node) = ast->push<Assign>({(yyvsp[-2].str_val).c_str(), (yyvsp[0].node)}); }
 #line 1551 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 36:
-#line 166 "lang.y" /* yacc.c:1646  */
+#line 167 "lang.y" /* yacc.c:1646  */
     { (yyval.node) = ast->push<StmtList>({}); (yyval.node)->As<StmtList>().nodes.push_back((yyvsp[0].node)); }
 #line 1557 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 37:
-#line 167 "lang.y" /* yacc.c:1646  */
+#line 168 "lang.y" /* yacc.c:1646  */
     { 
 			(yyval.node) = (yyvsp[-1].node);
 			(yyvsp[-1].node)->As<StmtList>().nodes.push_back( {(yyvsp[0].node)} );
@@ -1566,121 +1566,121 @@ yyreduce:
     break;
 
   case 38:
-#line 177 "lang.y" /* yacc.c:1646  */
+#line 178 "lang.y" /* yacc.c:1646  */
     { (yyvsp[-1].node)->inParens = true; (yyval.node) = (yyvsp[-1].node); }
 #line 1572 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 39:
-#line 178 "lang.y" /* yacc.c:1646  */
+#line 179 "lang.y" /* yacc.c:1646  */
     { (yyval.node) = ast->push<Ident>({(yyvsp[0].str_val)}); }
 #line 1578 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 40:
-#line 179 "lang.y" /* yacc.c:1646  */
+#line 180 "lang.y" /* yacc.c:1646  */
     { (yyval.node) = ast->push<ExprBin>({EBT_Or, (yyvsp[-2].node), (yyvsp[0].node)}); }
 #line 1584 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 41:
-#line 180 "lang.y" /* yacc.c:1646  */
+#line 181 "lang.y" /* yacc.c:1646  */
     { (yyval.node) = ast->push<ExprBin>({EBT_And, (yyvsp[-2].node), (yyvsp[0].node)}); }
 #line 1590 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 42:
-#line 181 "lang.y" /* yacc.c:1646  */
+#line 182 "lang.y" /* yacc.c:1646  */
     { (yyval.node) = ast->push<ExprBin>({EBT_NEquals, (yyvsp[-2].node), (yyvsp[0].node)}); }
 #line 1596 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 43:
-#line 182 "lang.y" /* yacc.c:1646  */
+#line 183 "lang.y" /* yacc.c:1646  */
     { (yyval.node) = ast->push<ExprBin>({EBT_Equals, (yyvsp[-2].node), (yyvsp[0].node)}); }
 #line 1602 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 44:
-#line 183 "lang.y" /* yacc.c:1646  */
+#line 184 "lang.y" /* yacc.c:1646  */
     { (yyval.node) = ast->push<ExprBin>({EBT_LEquals, (yyvsp[-2].node), (yyvsp[0].node)}); }
 #line 1608 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 45:
-#line 184 "lang.y" /* yacc.c:1646  */
+#line 185 "lang.y" /* yacc.c:1646  */
     { (yyval.node) = ast->push<ExprBin>({EBT_Less, (yyvsp[-2].node), (yyvsp[0].node)}); }
 #line 1614 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 46:
-#line 185 "lang.y" /* yacc.c:1646  */
+#line 186 "lang.y" /* yacc.c:1646  */
     { (yyval.node) = ast->push<ExprBin>({EBT_GEquals, (yyvsp[-2].node), (yyvsp[0].node)}); }
 #line 1620 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 47:
-#line 186 "lang.y" /* yacc.c:1646  */
+#line 187 "lang.y" /* yacc.c:1646  */
     { (yyval.node) = ast->push<ExprBin>({EBT_Greater, (yyvsp[-2].node), (yyvsp[0].node)}); }
 #line 1626 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 48:
-#line 187 "lang.y" /* yacc.c:1646  */
+#line 188 "lang.y" /* yacc.c:1646  */
     { (yyval.node) = ast->push<ExprBin>({EBT_Add, (yyvsp[-2].node), (yyvsp[0].node)}); }
 #line 1632 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 49:
-#line 188 "lang.y" /* yacc.c:1646  */
+#line 189 "lang.y" /* yacc.c:1646  */
     { (yyval.node) = ast->push<ExprBin>({EBT_Sub, (yyvsp[-2].node), (yyvsp[0].node)}); }
 #line 1638 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 50:
-#line 189 "lang.y" /* yacc.c:1646  */
+#line 190 "lang.y" /* yacc.c:1646  */
     { (yyval.node) = ast->push<ExprBin>({EBT_Mul, (yyvsp[-2].node), (yyvsp[0].node)}); }
 #line 1644 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 51:
-#line 190 "lang.y" /* yacc.c:1646  */
+#line 191 "lang.y" /* yacc.c:1646  */
     { (yyval.node) = ast->push<ExprBin>({EBT_Div, (yyvsp[-2].node), (yyvsp[0].node)}); }
 #line 1650 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 52:
-#line 191 "lang.y" /* yacc.c:1646  */
+#line 192 "lang.y" /* yacc.c:1646  */
     { (yyval.node) = ast->push(ExprBin(EBT_MatMul, (yyvsp[-3].node), (yyvsp[-1].node))); }
 #line 1656 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 53:
-#line 192 "lang.y" /* yacc.c:1646  */
+#line 193 "lang.y" /* yacc.c:1646  */
     { (yyval.node) = ast->push(ExprLiteral((yyvsp[0].float_val))); }
 #line 1662 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 54:
-#line 193 "lang.y" /* yacc.c:1646  */
+#line 194 "lang.y" /* yacc.c:1646  */
     { (yyval.node) = ast->push(ExprLiteral((yyvsp[0].int_val))); }
 #line 1668 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 55:
-#line 194 "lang.y" /* yacc.c:1646  */
+#line 195 "lang.y" /* yacc.c:1646  */
     { (yyval.node) = (yyvsp[0].node); }
 #line 1674 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 56:
-#line 200 "lang.y" /* yacc.c:1646  */
+#line 201 "lang.y" /* yacc.c:1646  */
     { (yyval.node) = ast->push<FuncCall>(); }
 #line 1680 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 57:
-#line 202 "lang.y" /* yacc.c:1646  */
+#line 203 "lang.y" /* yacc.c:1646  */
     { 
 				Node* fnCall = ast->push<FuncCall>();
 				fnCall->As<FuncCall>().args.push_back((yyvsp[0].node)); 
@@ -1690,13 +1690,13 @@ yyreduce:
     break;
 
   case 58:
-#line 208 "lang.y" /* yacc.c:1646  */
+#line 209 "lang.y" /* yacc.c:1646  */
     { (yyvsp[-2].node)->As<FuncCall>().args.push_back((yyvsp[0].node)); (yyval.node) = (yyvsp[-2].node); }
 #line 1696 "lang.tab.cpp" /* yacc.c:1646  */
     break;
 
   case 59:
-#line 212 "lang.y" /* yacc.c:1646  */
+#line 213 "lang.y" /* yacc.c:1646  */
     { 
 			(yyvsp[-1].node)->As<FuncCall>().fnName = (yyvsp[-3].str_val);
 			(yyval.node) = (yyvsp[-1].node); 
@@ -1933,7 +1933,7 @@ yyreturn:
 #endif
   return yyresult;
 }
-#line 221 "lang.y" /* yacc.c:1906  */
+#line 222 "lang.y" /* yacc.c:1906  */
 
 
 void yyerror (yyscan_t yyscanner, char const *msg){

@@ -14,6 +14,12 @@ std::string NodeGenerateCode(const LangSetting& lang, T& data) {
 	return std::string();
 }
 
+struct Ast;
+
+template<class T>
+void NodeDeclare(Ast* ast, T& data) {
+}
+
 std::string GenerateCode(const LangSetting& lang, const char* code);
 
 #include "utils/variant.h"
@@ -108,6 +114,10 @@ struct TypeDesc
 		else if(strType == "float3") m_type = Type_float3;
 		else if(strType == "float4") m_type = Type_float4;
 		else if(strType == "float4x4") m_type = Type_float4x4;
+		else {
+			strType = "<undeduced_type>";
+			m_type = Type_Undeduced;
+		}
 	}
 
 	bool operator==(TypeDesc& other) const
@@ -119,8 +129,8 @@ struct TypeDesc
 	static TypeDesc ResolveType(const TypeDesc& left, const TypeDesc& right)
 	{
 		auto isPairOf = [left, right](Type a, Type b) {
-			return (left.GetType() == a && right.GetType() == b) ||
-					(left.GetType() == b && right.GetType() == a);
+			return (left.GetBuildInType() == a && right.GetBuildInType() == b) ||
+					(left.GetBuildInType() == b && right.GetBuildInType() == a);
 		};
 
 		if(isPairOf(Type_int, Type_float)) return TypeDesc(Type_float);
@@ -130,7 +140,13 @@ struct TypeDesc
 		return TypeDesc(Type_NoType);
 	}
 
-	Type GetType() const { return m_type; }
+	std::string GetTypeAsString() const 
+	{
+		if(m_strType.empty()) return "<empty-str-type>";
+		return m_strType;
+	}
+
+	Type GetBuildInType() const { return m_type; }
 
 private : 
 
@@ -187,6 +203,8 @@ struct Node
 		return retval;
 	}
 
+	void NodeDeclare(Ast* ast);
+
 	NodeType type = NT_None;
 	Variant<100> data;
 
@@ -209,13 +227,35 @@ struct Ast
 	inline Node* push(const T t = T()) {
 		return add(new Node((NodeType)T::MyNodeType, t));
 	}
+	
+	void declPushScope() {
+		static int scopeIndex;
+		char srtScope[32];
+		sprintf(srtScope, "scope_%d", scopeIndex);
+		scopeIndex++;
 
-	void PrepassDecl()
-	{
-		
-		std::vector<std::string> scope;
+		declPushScope(srtScope);
+	}
 
+	void declPushScope(const std::string& scopeName) {
+		scope.push_back(scopeName);
+	}
+
+	void declPopScope() {
+		scope.pop_back();
+	}
+
+
+	struct FullVariableDesc {
+		int depth = 0;
+		std::string fullName;
+		TypeDesc type;
 	};
+
+	// Declares a variable at the current scope.
+	FullVariableDesc declareVariable(const TypeDesc& td, std::string name);
+	
+	const FullVariableDesc& findVarInCurrentScope(const std::string& name);
 
 	Node* program;
 	std::vector<Node*> nodes;
@@ -223,6 +263,9 @@ struct Ast
 	std::vector<VertexAttribs> vertexAttribs;
 	std::vector<Varyings> varyings;
 	std::vector<Uniforms> uniforms;
+
+	std::vector<std::string> scope;
+	std::vector<FullVariableDesc> declaredVariables;
 };
 
 
@@ -305,6 +348,9 @@ struct StmtIf
 	Node* falseStmt = nullptr; // optional
 };
 
+template<> void NodeDeclare<StmtIf>(Ast* ast, StmtIf& data);
+
+
 struct StmtWhile
 {
 	enum { MyNodeType = NT_While };
@@ -316,6 +362,8 @@ struct StmtWhile
 	Node* bodyStmt = nullptr;
 };
 
+template<> void NodeDeclare<StmtWhile>(Ast* ast, StmtWhile& data);
+
 struct StmtFor
 {
 	enum { MyNodeType = NT_For };
@@ -326,6 +374,8 @@ struct StmtFor
 	Node* stmt;
 };
 
+template<> void NodeDeclare<StmtFor>(Ast* ast, StmtFor& data);
+
 struct StmtList
 {
 	enum { MyNodeType = NT_StmtList };
@@ -333,32 +383,39 @@ struct StmtList
 	std::vector<Node*> nodes;
 };
 
+template<> void NodeDeclare<StmtList>(Ast* ast, StmtList& data);
+
 struct VarDecl
 {
 	enum { MyNodeType = NT_VarDecl };
 
-	std::string type;
+	TypeDesc type;//std::string type;
 	std::vector<std::string> ident;
 	std::vector<Node*> expr;
 };
+
+template<> void NodeDeclare<VarDecl>(Ast* ast, VarDecl& data);
 
 struct FnDeclArgVarDecl
 {
 	enum { MyNodeType = NT_FnDeclArgVarDecl };
 
-	std::string type;
-	std::string ident;
+	TypeDesc type;//std::string type;
+	std::string ident; // The name of the variable.
 	Node* expr;
 	FnCallArgType argType; //in/out/inout.
 
 };
+
+template<> void NodeDeclare(Ast* ast, FnDeclArgVarDecl& data);
+
 
 struct FuncDecl
 {
 	enum { MyNodeType = NT_FuncDecl };
 
 	std::vector<Node*> args;
-	std::string retType;
+	TypeDesc retType;//std::string retType;
 	std::string name;
 
 	Node* stmt; // the body of the function.
@@ -371,6 +428,10 @@ struct ProgramElem
 
 	std::vector<Node*> nodes;
 };
+
+template<>
+void NodeDeclare<ProgramElem>(Ast* ast, ProgramElem& data);
+
 
 template<>
 std::string NodeGenerateCode<Ident>(const LangSetting& lang, Ident& data);
@@ -398,3 +459,6 @@ template<>
 std::string NodeGenerateCode<FuncDecl>(const LangSetting& lang, FuncDecl& data);
 template<>
 std::string NodeGenerateCode<ProgramElem>(const LangSetting& lang, ProgramElem& data);
+
+template<>
+void NodeDeclare<FuncDecl>(Ast* ast, FuncDecl& data);

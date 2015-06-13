@@ -88,14 +88,14 @@ shader_globals :
 	
 	// A single variable form the function declaration.
 fndecl_vardecl_var : 
-		IDENT IDENT 							{ $$ = ast->push<FnDeclArgVarDecl>({$1, $2, nullptr, FNAT_In      }); }
-	|	IDENT IDENT '=' expr					{ $$ = ast->push<FnDeclArgVarDecl>({$1, $2, $4     , FNAT_In      }); }
-	|	IN IDENT IDENT 							{ $$ = ast->push<FnDeclArgVarDecl>({$2, $3, nullptr, FNAT_In	  }); }
-	|	IN IDENT IDENT '=' expr					{ $$ = ast->push<FnDeclArgVarDecl>({$2, $3, $5     , FNAT_In	  }); }
-	|	OUT IDENT IDENT 						{ $$ = ast->push<FnDeclArgVarDecl>({$2, $3, nullptr, FNAT_Out     }); }
-	|	OUT IDENT IDENT '=' expr				{ $$ = ast->push<FnDeclArgVarDecl>({$2, $3, $5     , FNAT_Out     }); }
-	|	INOUT IDENT IDENT 						{ $$ = ast->push<FnDeclArgVarDecl>({$2, $3, nullptr, FNAT_InOut   }); }
-	|	INOUT IDENT IDENT '=' expr				{ $$ = ast->push<FnDeclArgVarDecl>({$2, $3, $5     , FNAT_InOut   }); }
+		IDENT IDENT 							{ $$ = ast->push<FnDeclArgVarDecl>({TypeDesc($1), $2, nullptr, FNAT_In      }); }
+	|	IDENT IDENT '=' expr					{ $$ = ast->push<FnDeclArgVarDecl>({TypeDesc($1), $2, $4     , FNAT_In      }); }
+	|	IN IDENT IDENT 							{ $$ = ast->push<FnDeclArgVarDecl>({TypeDesc($2), $3, nullptr, FNAT_In	    }); }
+	|	IN IDENT IDENT '=' expr					{ $$ = ast->push<FnDeclArgVarDecl>({TypeDesc($2), $3, $5     , FNAT_In	    }); }
+	|	OUT IDENT IDENT 						{ $$ = ast->push<FnDeclArgVarDecl>({TypeDesc($2), $3, nullptr, FNAT_Out     }); }
+	|	OUT IDENT IDENT '=' expr				{ $$ = ast->push<FnDeclArgVarDecl>({TypeDesc($2), $3, $5     , FNAT_Out     }); }
+	|	INOUT IDENT IDENT 						{ $$ = ast->push<FnDeclArgVarDecl>({TypeDesc($2), $3, nullptr, FNAT_InOut   }); }
+	|	INOUT IDENT IDENT '=' expr				{ $$ = ast->push<FnDeclArgVarDecl>({TypeDesc($2), $3, $5     , FNAT_InOut   }); }
 	;
 	
 	// A list of variables for the function declaration.
@@ -114,7 +114,7 @@ fndecl_vardecl :
 function_decl : 
 	IDENT IDENT '(' fndecl_vardecl ')' '{' stmt_list '}'	{ 
 		auto& funcDecl = $4->As<FuncDecl>();
-		funcDecl.retType = $1;
+		funcDecl.retType = TypeDesc($1);
 		funcDecl.name = $2;
 		funcDecl.stmt = $7;
 		$$ = $4;
@@ -126,9 +126,10 @@ function_decl :
 	//-------------------------------------------------
 	
 	// A single variable(or a variable list followed by a single variable) and the optional assigment expression
+	// type var, var = expr;
 vardecl_var_list : 
-		IDENT 								{ $$ = ast->push<VarDecl>({"unk", {$1}, {nullptr}}); } // unk used for unknown
-	|	IDENT '=' expr 						{ $$ = ast->push<VarDecl>({"unk", {$1}, {$3}}); } // unk used for unknown
+		IDENT 								{ $$ = ast->push<VarDecl>({TypeDesc(), {$1}, {nullptr}}); } // unk used for unknown
+	|	IDENT '=' expr 						{ $$ = ast->push<VarDecl>({TypeDesc(), {$1}, {$3}}); } // unk used for unknown
 	|	vardecl_var_list ',' IDENT 			{ $$->As<VarDecl>().ident.push_back($3);	}
 	|	vardecl_var_list ',' IDENT '=' expr	{ 
 			$$ = $1; 
@@ -138,7 +139,7 @@ vardecl_var_list :
 	
 	// The actual variable declaration
 vardecl :
-		IDENT vardecl_var_list	{ $2->As<VarDecl>().type = $1; $$ = $2; }
+		IDENT vardecl_var_list	{ $2->As<VarDecl>().type = TypeDesc($1); $$ = $2; }
 	;
 	
 	//-------------------------------------------------

@@ -2,6 +2,8 @@
 
 #include <string>
 
+struct Ast;
+
 template <int Nbytes>
 struct Variant
 {
@@ -36,6 +38,10 @@ struct Variant
 		return GetTypeHolder()->CallGenerateCode(object, lang); 
 	}
 
+	void NodeDelcare(Ast* ast) {
+		GetTypeHolder()->CallNodeDeclare(object, ast);
+	}
+
 
 private :
 
@@ -45,6 +51,7 @@ private :
 		virtual void destruct(void*) const = 0;
 
 		virtual std::string CallGenerateCode(void* p, const LangSetting& lang) const = 0;
+		virtual void CallNodeDeclare(void* p, Ast* ast) const = 0;
 	};
 
 	struct Dummy {
@@ -58,6 +65,7 @@ private :
 		void destruct(void* p) const override { ((T*)(p))->~T(); }
 
 		std::string CallGenerateCode(void* p, const LangSetting& lang) const override {return ::NodeGenerateCode(lang, *((T*)(p))); }
+		void CallNodeDeclare(void* p, Ast* ast) const override { ::NodeDeclare(ast,  *((T*)(p))); }
 	};
 
 	char object[Nbytes];

@@ -308,6 +308,7 @@ struct Ident
 	TypeDesc resolvedType;
 };
 
+template<> std::string NodeGenerateCode<Ident>(const LangSetting& lang, Ident& data);
 template<> void NodeDeclare<Ident>(Ast* ast, Ident& data);
 template<> TypeDesc NodeDeduceType<Ident>(Ident& data);
 
@@ -334,6 +335,7 @@ struct ExprBin
 	TypeDesc resolvedType;
 };
 
+template<> std::string NodeGenerateCode<ExprBin>(const LangSetting& lang, ExprBin& data);
 template<> void NodeDeclare<ExprBin>(Ast* ast, ExprBin& data);
 template<> TypeDesc NodeDeduceType<ExprBin>(ExprBin& data);
 
@@ -349,6 +351,7 @@ struct FuncCall
 	TypeDesc resolvedType;
 };
 
+template<> std::string NodeGenerateCode<FuncCall>(const LangSetting& lang, FuncCall& data);
 template<> void NodeDeclare<FuncCall>(Ast* ast, FuncCall& data);
 template<> TypeDesc NodeDeduceType<FuncCall>(FuncCall& data);
 
@@ -370,6 +373,7 @@ struct ExprLiteral
 	TypeDesc type;
 };
 
+template<> std::string NodeGenerateCode<ExprLiteral>(const LangSetting& lang, ExprLiteral& data);
 template<> TypeDesc NodeDeduceType<ExprLiteral>(ExprLiteral& data);
 
 //---------------------------------------------------------------------------------
@@ -383,6 +387,7 @@ struct Assign
 	Node* expr;
 };
 
+template<> std::string NodeGenerateCode<Assign>(const LangSetting& lang, Assign& data);
 template<> void NodeDeclare<Assign>(Ast* ast, Assign& data);
 
 struct StmtIf
@@ -397,6 +402,7 @@ struct StmtIf
 	Node* falseStmt = nullptr; // optional
 };
 
+template<> std::string NodeGenerateCode<StmtIf>(const LangSetting& lang, StmtIf& data);
 template<> void NodeDeclare<StmtIf>(Ast* ast, StmtIf& data);
 
 
@@ -411,6 +417,7 @@ struct StmtWhile
 	Node* bodyStmt = nullptr;
 };
 
+template<> std::string NodeGenerateCode<StmtWhile>(const LangSetting& lang, StmtWhile& data);
 template<> void NodeDeclare<StmtWhile>(Ast* ast, StmtWhile& data);
 
 struct StmtFor
@@ -423,6 +430,7 @@ struct StmtFor
 	Node* stmt;
 };
 
+template<> std::string NodeGenerateCode<StmtFor>(const LangSetting& lang, StmtFor& data);
 template<> void NodeDeclare<StmtFor>(Ast* ast, StmtFor& data);
 
 struct StmtList
@@ -432,6 +440,7 @@ struct StmtList
 	std::vector<Node*> nodes;
 };
 
+template<> std::string NodeGenerateCode<StmtList>(const LangSetting& lang, StmtList& data);
 template<> void NodeDeclare<StmtList>(Ast* ast, StmtList& data);
 
 struct VarDecl
@@ -452,6 +461,7 @@ struct VarDecl
 	std::vector<Node*> expr;
 };
 
+template<> std::string NodeGenerateCode<VarDecl>(const LangSetting& lang, VarDecl& data);
 template<> void NodeDeclare<VarDecl>(Ast* ast, VarDecl& data);
 
 struct FnDeclArgVarDecl
@@ -471,8 +481,8 @@ struct FnDeclArgVarDecl
 
 };
 
+template<> std::string NodeGenerateCode<FnDeclArgVarDecl>(const LangSetting& lang, FnDeclArgVarDecl& data);
 template<> void NodeDeclare(Ast* ast, FnDeclArgVarDecl& data);
-
 
 struct FuncDecl
 {
@@ -485,8 +495,8 @@ struct FuncDecl
 	Node* stmt; // the body of the function.
 };
 
-template<>
-void NodeDeclare<FuncDecl>(Ast* ast, FuncDecl& data);
+template<> std::string NodeGenerateCode<FuncDecl>(const LangSetting& lang, FuncDecl& data);
+template<> void NodeDeclare<FuncDecl>(Ast* ast, FuncDecl& data);
 
 struct ProgramElem
 {
@@ -495,35 +505,5 @@ struct ProgramElem
 	std::vector<Node*> nodes;
 };
 
-template<>
-void NodeDeclare<ProgramElem>(Ast* ast, ProgramElem& data);
-
-
-template<>
-std::string NodeGenerateCode<Ident>(const LangSetting& lang, Ident& data);
-template<>
-std::string NodeGenerateCode<ExprBin>(const LangSetting& lang, ExprBin& data);
-template<>
-std::string NodeGenerateCode<FuncCall>(const LangSetting& lang, FuncCall& data);
-template<>
-std::string NodeGenerateCode<ExprLiteral>(const LangSetting& lang, ExprLiteral& data);
-template<>
-std::string NodeGenerateCode<Assign>(const LangSetting& lang, Assign& data);
-template<>
-std::string NodeGenerateCode<StmtIf>(const LangSetting& lang, StmtIf& data);
-template<>
-std::string NodeGenerateCode<StmtWhile>(const LangSetting& lang, StmtWhile& data);
-template<>
-std::string NodeGenerateCode<StmtFor>(const LangSetting& lang, StmtFor& data);
-template<>
-std::string NodeGenerateCode<StmtList>(const LangSetting& lang, StmtList& data);
-template<>
-std::string NodeGenerateCode<VarDecl>(const LangSetting& lang, VarDecl& data);
-template<>
-std::string NodeGenerateCode<FnDeclArgVarDecl>(const LangSetting& lang, FnDeclArgVarDecl& data);
-template<>
-std::string NodeGenerateCode<FuncDecl>(const LangSetting& lang, FuncDecl& data);
-template<>
-std::string NodeGenerateCode<ProgramElem>(const LangSetting& lang, ProgramElem& data);
-
-
+template<> std::string NodeGenerateCode<ProgramElem>(const LangSetting& lang, ProgramElem& data);
+template<> void NodeDeclare<ProgramElem>(Ast* ast, ProgramElem& data);

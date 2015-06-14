@@ -3,6 +3,90 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <exception>
+
+struct Ast;
+
+struct ParseExcept : public std::exception {
+	ParseExcept(const char* msg) :
+		std::exception(msg)
+	{}
+
+	ParseExcept(const std::string& msg) :
+		std::exception(msg.c_str())
+	{}
+};
+
+struct TypeDesc
+{
+	enum Type
+	{
+		Type_Undeduced,
+		Type_NoType,
+
+		Type_void,
+	
+		Type_int,
+		Type_float,
+		Type_vec2f,
+		Type_vec3f,
+		Type_vec4f,
+
+		Type_mat4f,
+		Type_UserDefined,
+	};
+
+	TypeDesc(Type type = Type_Undeduced) : m_type(type) { }
+
+	TypeDesc(std::string strType) : m_strType(strType)
+	{
+		if(strType == "void") m_type = Type_void;
+		else if(strType == "int") m_type = Type_int;
+		else if(strType == "float") m_type = Type_float;
+		else if(strType == "vec2f") m_type = Type_vec2f;
+		else if(strType == "vec3f") m_type = Type_vec3f;
+		else if(strType == "vec4f") m_type = Type_vec4f;
+		else if(strType == "mat4f") m_type = Type_mat4f;
+		else {
+			strType = "<undeduced_type>";
+			//m_type = Type_Undeduced;
+		}
+	}
+
+	bool operator==(const TypeDesc& other) const
+	{
+		if(m_type != Type_UserDefined) return m_type == other.m_type;
+		return m_strType == other.m_strType;
+	}
+
+	static TypeDesc ResolveType(const TypeDesc& left, const TypeDesc& right)
+	{
+		auto isPairOf = [left, right](Type a, Type b) {
+			return (left.GetBuildInType() == a && right.GetBuildInType() == b) ||
+					(left.GetBuildInType() == b && right.GetBuildInType() == a);
+		};
+
+		if(isPairOf(Type_int, Type_float)) return TypeDesc(Type_float);
+		else if(isPairOf(Type_mat4f, Type_vec4f)) return TypeDesc(Type_vec4f);
+		else if(left == right) return left;
+
+		// Unknown expression cofiguration
+		return TypeDesc(Type_NoType);
+	}
+
+	std::string GetTypeAsString() const 
+	{
+		if(m_strType.empty()) return "<empty-str-type>";
+		return m_strType;
+	}
+
+	Type GetBuildInType() const { return m_type; }
+
+private : 
+
+	Type m_type;
+	std::string m_strType;
+};
 
 struct LangSetting
 {
@@ -14,7 +98,10 @@ std::string NodeGenerateCode(const LangSetting& lang, T& data) {
 	return std::string();
 }
 
-struct Ast;
+template<class T> TypeDesc NodeDeduceType(T& data) {
+	return TypeDesc(TypeDesc::Type_NoType);
+}
+
 
 template<class T>
 void NodeDeclare(Ast* ast, T& data) {
@@ -52,7 +139,6 @@ enum NodeType
 	NT_FuncDeclArgs,
 
 	NT_ProgramElem,
-
 	
 };
 
@@ -79,77 +165,6 @@ enum FnCallArgType
 	FNAT_Out,
 	FNAT_InOut,
 };
-
-struct TypeDesc
-{
-	enum Type
-	{
-		Type_Undeduced,
-		Type_NoType,
-
-		Type_void,
-	
-		Type_int,
-		Type_float,
-		Type_float2,
-		Type_float3,
-		Type_float4,
-
-		Type_float4x4,
-		Type_UserDefined,
-	};
-
-	TypeDesc(Type type = Type_Undeduced) : m_type(type) { }
-
-	TypeDesc(std::string strType) : m_strType(strType)
-	{
-		if(strType == "void") m_type = Type_void;
-		else if(strType == "int") m_type = Type_int;
-		else if(strType == "float") m_type = Type_float;
-		else if(strType == "float2") m_type = Type_float2;
-		else if(strType == "float3") m_type = Type_float3;
-		else if(strType == "float4") m_type = Type_float4;
-		else if(strType == "float4x4") m_type = Type_float4x4;
-		else {
-			strType = "<undeduced_type>";
-			m_type = Type_Undeduced;
-		}
-	}
-
-	bool operator==(TypeDesc& other) const
-	{
-		if(m_type != Type_UserDefined) return m_type == other.m_type;
-		return m_strType == other.m_strType;
-	}
-
-	static TypeDesc ResolveType(const TypeDesc& left, const TypeDesc& right)
-	{
-		auto isPairOf = [left, right](Type a, Type b) {
-			return (left.GetBuildInType() == a && right.GetBuildInType() == b) ||
-					(left.GetBuildInType() == b && right.GetBuildInType() == a);
-		};
-
-		if(isPairOf(Type_int, Type_float)) return TypeDesc(Type_float);
-		if(isPairOf(Type_float4x4, Type_float4)) return TypeDesc(Type_float4);
-
-		// Unknown expression cofiguration
-		return TypeDesc(Type_NoType);
-	}
-
-	std::string GetTypeAsString() const 
-	{
-		if(m_strType.empty()) return "<empty-str-type>";
-		return m_strType;
-	}
-
-	Type GetBuildInType() const { return m_type; }
-
-private : 
-
-	Type m_type;
-	std::string m_strType;
-};
-
 
 struct VertexAttribs
 {
@@ -201,6 +216,8 @@ struct Node
 
 	void NodeDeclare(Ast* ast);
 
+	TypeDesc NodeDeduceType() { return data.NodeDeduceType(); }
+
 	NodeType type = NT_None;
 	Variant<100> data;
 
@@ -241,6 +258,11 @@ struct Ast
 		scope.pop_back();
 	}
 
+	// Adds a node. to the deduction queue.
+	void addDeduct(Node* expr)
+	{
+		deductionQueue.push_back(expr);
+	}
 
 	struct FullVariableDesc {
 		int depth = 0;
@@ -258,6 +280,7 @@ struct Ast
 	void declareFunction(const TypeDesc& returnType, const std::string& name);
 	
 	const FullVariableDesc& findVarInCurrentScope(const std::string& name);
+	const FullFuncionDesc& findFuncDecl(const std::string& name);
 
 	Node* program;
 	std::vector<Node*> nodes;
@@ -269,16 +292,24 @@ struct Ast
 	std::vector<std::string> scope;
 	std::vector<FullVariableDesc> declaredVariables;
 	std::vector<FullFuncionDesc> declaredFunctions;
+
+	std::vector<Node*> deductionQueue;
 };
 
 
 //-------------------------------------------------------------------------
 //
 //-------------------------------------------------------------------------
-struct Ident {
+struct Ident
+{
 	enum { MyNodeType = NT_Identifier };
+
 	std::string identifier;
+	TypeDesc resolvedType;
 };
+
+template<> void NodeDeclare<Ident>(Ast* ast, Ident& data);
+template<> TypeDesc NodeDeduceType<Ident>(Ident& data);
 
 //---------------------------------------------------------------------------------
 // Expressions
@@ -303,6 +334,9 @@ struct ExprBin
 	TypeDesc resolvedType;
 };
 
+template<> void NodeDeclare<ExprBin>(Ast* ast, ExprBin& data);
+template<> TypeDesc NodeDeduceType<ExprBin>(ExprBin& data);
+
 // Function calls in expressions.
 
 struct FuncCall
@@ -314,6 +348,9 @@ struct FuncCall
 
 	TypeDesc resolvedType;
 };
+
+template<> void NodeDeclare<FuncCall>(Ast* ast, FuncCall& data);
+template<> TypeDesc NodeDeduceType<FuncCall>(FuncCall& data);
 
 // Literal value
 struct ExprLiteral
@@ -332,6 +369,8 @@ struct ExprLiteral
 
 	TypeDesc type;
 };
+
+template<> TypeDesc NodeDeduceType<ExprLiteral>(ExprLiteral& data);
 
 //---------------------------------------------------------------------------------
 // Statementsd

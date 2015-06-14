@@ -2,7 +2,8 @@
 
 #include "ast.h"
 
-void Node::NodeDeclare(Ast* ast) {
+void Node::NodeDeclare(Ast* ast)
+{
 	if(inBlock) ast->declPushScope();
 	data.NodeDelcare(ast);
 	if(inBlock) ast->declPopScope();
@@ -25,6 +26,38 @@ Ast::FullVariableDesc Ast::declareVariable(const TypeDesc& td, const std::string
 	return fvd;
 }
 
+const Ast::FullVariableDesc& Ast::findVarInCurrentScope(const std::string& name)
+{
+	int depth = scope.size();
+	std::string fullName;
+
+	while(depth > 0)
+	{
+		fullName.clear();
+		for(int t = 0; t < depth; ++t) fullName+= scope[t] + "::";
+		fullName += name;
+
+		for(auto& v : declaredVariables)
+		{
+			if(v.fullName == fullName) return v;
+		}
+
+		depth--;
+	}
+
+	throw ParseExcept("Referenced an undefined variable: " + name);
+}
+
+const Ast::FullFuncionDesc& Ast::findFuncDecl(const std::string& name)
+{
+	for(auto& f : declaredFunctions)
+	{
+		if(f.fullName == name) return f;
+	}
+
+	throw ParseExcept("Referenced an undefined funcion: " + name);
+}
+
 void Ast::declareFunction(const TypeDesc& returnType, const std::string& name)
 {
 	declaredFunctions.push_back({name, returnType});
@@ -37,6 +70,17 @@ template<>
 std::string NodeGenerateCode<Ident>(const LangSetting& lang, Ident& data)
 {
 	return data.identifier;
+}
+
+template<> void NodeDeclare<Ident>(Ast* ast, Ident& data)
+{
+	auto var = ast->findVarInCurrentScope(data.identifier);
+	data.resolvedType = var.type;
+}
+
+template<> TypeDesc NodeDeduceType<Ident>(Ident& data)
+{
+	return data.resolvedType;
 }
 
 //-----------------------------------------------------------------------
@@ -52,7 +96,18 @@ std::string NodeGenerateCode<ExprBin>(const LangSetting& lang, ExprBin& data)
 		case EBT_Add :      return left->NodeGenerateCode(lang) + (" + ") + right->NodeGenerateCode(lang);
 		case EBT_Sub :      return left->NodeGenerateCode(lang) + (" - ") + right->NodeGenerateCode(lang);
 		case EBT_MatMul :   return "mul(" + left->NodeGenerateCode(lang) + "," + right->NodeGenerateCode(lang) + ")"; 
-		case EBT_Mul :      return left->NodeGenerateCode(lang) + (" * ") + right->NodeGenerateCode(lang);
+		case EBT_Mul :
+		{
+			if(left->NodeDeduceType().GetBuildInType() == TypeDesc::Type_mat4f || 
+				right->NodeDeduceType().GetBuildInType() == TypeDesc::Type_mat4f)
+			{
+				return "mul(" + left->NodeGenerateCode(lang) + "," + right->NodeGenerateCode(lang) + ")";
+			}
+			else 
+			{
+				return left->NodeGenerateCode(lang) + (" * ") + right->NodeGenerateCode(lang);
+			}
+		}
 		case EBT_Div :      return left->NodeGenerateCode(lang) + (" / ") + right->NodeGenerateCode(lang);
 		case EBT_Greater :  return left->NodeGenerateCode(lang) + (" > ") + right->NodeGenerateCode(lang);
 		case EBT_GEquals :  return left->NodeGenerateCode(lang) + (" >= ") + right->NodeGenerateCode(lang);
@@ -68,11 +123,22 @@ std::string NodeGenerateCode<ExprBin>(const LangSetting& lang, ExprBin& data)
 	return "expr ??? expr";
 }
 
+template<> void NodeDeclare<ExprBin>(Ast* ast, ExprBin& data)
+{
+	data.left->NodeDeclare(ast);
+	data.right->NodeDeclare(ast);
+}
+
+template<> TypeDesc NodeDeduceType<ExprBin>(ExprBin& data)
+{
+	if(data.resolvedType == TypeDesc()) data.resolvedType = TypeDesc::ResolveType(data.left->NodeDeduceType(), data.right->NodeDeduceType());
+	return data.resolvedType;
+}
+
 //------------------------------------------------------------------------------
 //
 //------------------------------------------------------------------------------
-template<>
-std::string NodeGenerateCode<FuncCall>(const LangSetting& lang, FuncCall& data)
+template<> std::string NodeGenerateCode<FuncCall>(const LangSetting& lang, FuncCall& data)
 {
 	std::string retval = data.fnName + '(';
 	
@@ -84,6 +150,17 @@ std::string NodeGenerateCode<FuncCall>(const LangSetting& lang, FuncCall& data)
 	retval += ')';
 	
 	return retval;
+}
+
+template<> void NodeDeclare<FuncCall>(Ast* ast, FuncCall& data)
+{
+	data.resolvedType = ast->findFuncDecl(data.fnName).retType;
+	for(auto& arg : data.args) arg->NodeDeclare(ast);
+}
+
+template<> TypeDesc NodeDeduceType(FuncCall& data)
+{
+	return data.resolvedType;
 }
 
 //------------------------------------------------------------------------------
@@ -114,6 +191,10 @@ std::string NodeGenerateCode<ExprLiteral>(const LangSetting& lang, ExprLiteral& 
 	}
 
 	return "???";
+}
+
+template<> TypeDesc NodeDeduceType(ExprLiteral& data) {
+	return data.type;
 }
 
 //------------------------------------------------------------------------------
@@ -253,11 +334,11 @@ std::string NodeGenerateCode<VarDecl>(const LangSetting& lang, VarDecl& data)
 
 template<> void NodeDeclare<VarDecl>(Ast* ast, VarDecl& data)
 {
-	for(int t = 0; t < data.ident.size(); ++t) {
+	for(int t = 0; t < data.ident.size(); ++t)
+	{
 		ast->declareVariable(data.type, data.ident[t]);
 	}
 }
-
 
 //------------------------------------------------------------------------------
 //
@@ -344,8 +425,19 @@ bool LangParseExpression(const char* code, Ast* ast);
 
 std::string GenerateCode(const LangSetting& lang, const char* code)
 {
-	Ast ast;
-	LangParseExpression(code, &ast);
-	ast.program->NodeDeclare(&ast);
-	return ast.program->NodeGenerateCode(lang);
+	try 
+	{
+		Ast ast;
+		LangParseExpression(code, &ast);
+		ast.program->NodeDeclare(&ast);
+		
+		for(auto n : ast.deductionQueue) n->NodeDeduceType();
+
+		return ast.program->NodeGenerateCode(lang);
+	}
+	catch(const std::exception& e) {
+		printf(e.what());
+	}
+
+	return std::string();
 }

@@ -46,29 +46,12 @@ int main()
 	Ast ast;
 
 char* code = R"(
-
-void f(inout int x, out int y, in void z, int x) {
-	if(x + 5 == 10) {
-		x = (10+3)*5;
-	}
-
-	while(5 < x) {
-		x=10;
-		if (x >= 10) x = 5;
-	}
-	
-	y = bar();
-	x = foo(x+3,1,3*4*foo()) * mul(mul(3+4,foo(5)), x);
+mat4f getm() {x = 10;}
+void f() {
+	mat4f m;
+	vec4f v;
+	v = m * v * (getm() * v);
 }
-
-void fo() {
-	float a,b,c=1,d;
-	int x = 1.0;
-	for(int t = 0; t < 10; 1+t) {
-		printf(bla);
-	}
-}
-
 )";
 	std::string formatted = FormatCode(GenerateCode(LangSetting(), code).c_str());
 

@@ -37,7 +37,7 @@ bool parseExpression(const std::string& inp);
 
 // Grammar expression types (from yystype).
 %type <node>	fncall_args expr_fncall fndecl_vardecl_var fndecl_vardecl
-%type <node>	expr stmt
+%type <node>	expr_base expr stmt
 %type <node>	vardecl_var_list vardecl assign_stmt
 %type <node>	stmt_list function_decl shader_globals
 %type <node>	program grammar_elem grammar_list
@@ -178,39 +178,43 @@ stmt_list :
 	//-------------------------------------------------
 	// Expressions (like +-*/ function calls, literals ect.).
 	//-------------------------------------------------
-expr :
-		'(' expr ')'				{ $2->inParens = true; $$ = $2; }
-	|	IDENT						{ $$ = ast->push<Ident>({$1}); }
-	|	expr OR expr				{ $$ = ast->push(ExprBin(EBT_Or, $1, $3)); }
-	|	expr AND expr				{ $$ = ast->push(ExprBin(EBT_And, $1, $3)); }
-	|	expr NOTEQUALS expr			{ $$ = ast->push(ExprBin(EBT_NEquals, $1, $3)); }
-	|	expr EQUALS expr			{ $$ = ast->push(ExprBin(EBT_Equals, $1, $3)); }
-	|	expr LE expr				{ $$ = ast->push(ExprBin(EBT_LEquals, $1, $3)); }
-	|	expr '<' expr				{ $$ = ast->push(ExprBin(EBT_Less, $1, $3)); }
-	|	expr GE expr				{ $$ = ast->push(ExprBin(EBT_GEquals, $1, $3)); }
-	|	expr '>' expr				{ $$ = ast->push(ExprBin(EBT_Greater, $1, $3)); }
-	|	expr '+' expr				{ $$ = ast->push(ExprBin(EBT_Add, $1, $3)); } 
-	|	expr '-' expr				{ $$ = ast->push(ExprBin(EBT_Sub, $1, $3)); } 	
-	|	expr '*' expr				{ $$ = ast->push(ExprBin(EBT_Mul, $1, $3)); } 
-	|	expr '/' expr				{ $$ = ast->push(ExprBin(EBT_Div, $1, $3)); }
-	|	MUL '(' expr ',' expr ')'	{ $$ = ast->push(ExprBin(EBT_MatMul, $3, $5)); }
-	|	NUM_FLOAT					{ $$ = ast->push(ExprLiteral($1)); }
-	|	NUM_INT						{ $$ = ast->push(ExprLiteral($1)); }
-	|	expr_fncall					{ $$ = $1; }	
+
+expr : expr_base { $$ = $1; ast->addDeduct($1); }
+	
+	
+expr_base :
+		'(' expr_base ')'			    	{ $2->inParens = true; $$ = $2; }
+	|	IDENT					        	{ $$ = ast->push<Ident>({$1}); }
+	|	expr_base OR expr_base			    { $$ = ast->push(ExprBin(EBT_Or, $1, $3)); }
+	|	expr_base AND expr_base			    { $$ = ast->push(ExprBin(EBT_And, $1, $3)); }
+	|	expr_base NOTEQUALS expr_base		{ $$ = ast->push(ExprBin(EBT_NEquals, $1, $3)); }
+	|	expr_base EQUALS expr_base			{ $$ = ast->push(ExprBin(EBT_Equals, $1, $3)); }
+	|	expr_base LE expr_base				{ $$ = ast->push(ExprBin(EBT_LEquals, $1, $3)); }
+	|	expr_base '<' expr_base				{ $$ = ast->push(ExprBin(EBT_Less, $1, $3)); }
+	|	expr_base GE expr_base				{ $$ = ast->push(ExprBin(EBT_GEquals, $1, $3)); }
+	|	expr_base '>' expr_base				{ $$ = ast->push(ExprBin(EBT_Greater, $1, $3)); }
+	|	expr_base '+' expr_base				{ $$ = ast->push(ExprBin(EBT_Add, $1, $3)); } 
+	|	expr_base '-' expr_base				{ $$ = ast->push(ExprBin(EBT_Sub, $1, $3)); } 	
+	|	expr_base '*' expr_base				{ $$ = ast->push(ExprBin(EBT_Mul, $1, $3)); } 
+	|	expr_base '/' expr_base				{ $$ = ast->push(ExprBin(EBT_Div, $1, $3)); }
+	|	MUL '(' expr_base ',' expr_base ')'	{ $$ = ast->push(ExprBin(EBT_MatMul, $3, $5)); }
+	|	NUM_FLOAT					        { $$ = ast->push(ExprLiteral($1)); }
+	|	NUM_INT						        { $$ = ast->push(ExprLiteral($1)); }
+	|	expr_fncall					        { $$ = $1; }	
 	;
 
 	
 	// Function arguments as a list.
 fncall_args :
 			{ $$ = ast->push<FuncCall>(); }
-		| 	expr
+		| 	expr_base
 			{ 
 				Node* fnCall = ast->push<FuncCall>();
 				fnCall->As<FuncCall>().args.push_back($1); 
 				$$ = fnCall;
 			}
 		
-	|	fncall_args ',' expr 	{ $1->As<FuncCall>().args.push_back($3); $$ = $1; }
+	|	fncall_args ',' expr_base 	{ $1->As<FuncCall>().args.push_back($3); $$ = $1; }
 	
 	// The function call expression itself.
 expr_fncall :

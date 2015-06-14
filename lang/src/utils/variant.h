@@ -42,6 +42,9 @@ struct Variant
 		GetTypeHolder()->CallNodeDeclare(object, ast);
 	}
 
+	TypeDesc NodeDeduceType() {
+		return GetTypeHolder()->CallDeduceType(object);
+	}
 
 private :
 
@@ -52,6 +55,7 @@ private :
 
 		virtual std::string CallGenerateCode(void* p, const LangSetting& lang) const = 0;
 		virtual void CallNodeDeclare(void* p, Ast* ast) const = 0;
+		virtual TypeDesc CallDeduceType(void* p) const = 0;
 	};
 
 	struct Dummy {
@@ -66,6 +70,7 @@ private :
 
 		std::string CallGenerateCode(void* p, const LangSetting& lang) const override {return ::NodeGenerateCode(lang, *((T*)(p))); }
 		void CallNodeDeclare(void* p, Ast* ast) const override { ::NodeDeclare(ast,  *((T*)(p))); }
+		TypeDesc CallDeduceType(void* p) const override { return ::NodeDeduceType(*((T*)(p))); }
 	};
 
 	char object[Nbytes];

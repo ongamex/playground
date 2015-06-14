@@ -399,6 +399,15 @@ struct VarDecl
 {
 	enum { MyNodeType = NT_VarDecl };
 
+	VarDecl() = default;
+
+	VarDecl(TypeDesc type, std::string firstIdent, Node* firstExpr) : 
+		type(type)
+	{
+		ident.push_back(firstIdent);
+		expr.push_back(firstExpr);
+	}
+
 	TypeDesc type;//std::string type;
 	std::vector<std::string> ident;
 	std::vector<Node*> expr;
@@ -409,6 +418,12 @@ template<> void NodeDeclare<VarDecl>(Ast* ast, VarDecl& data);
 struct FnDeclArgVarDecl
 {
 	enum { MyNodeType = NT_FnDeclArgVarDecl };
+
+	FnDeclArgVarDecl() = default;
+
+	FnDeclArgVarDecl(TypeDesc type, const std::string& ident, Node* const expr, FnCallArgType argType) :
+		type(type), ident(ident), expr(expr), argType(argType)
+	{}
 
 	TypeDesc type;//std::string type;
 	std::string ident; // The name of the variable.

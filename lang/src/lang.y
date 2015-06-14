@@ -88,14 +88,14 @@ shader_globals :
 	
 	// A single variable form the function declaration.
 fndecl_vardecl_var : 
-		IDENT IDENT 							{ $$ = ast->push<FnDeclArgVarDecl>({TypeDesc($1), $2, nullptr, FNAT_In      }); }
-	|	IDENT IDENT '=' expr					{ $$ = ast->push<FnDeclArgVarDecl>({TypeDesc($1), $2, $4     , FNAT_In      }); }
-	|	IN IDENT IDENT 							{ $$ = ast->push<FnDeclArgVarDecl>({TypeDesc($2), $3, nullptr, FNAT_In	    }); }
-	|	IN IDENT IDENT '=' expr					{ $$ = ast->push<FnDeclArgVarDecl>({TypeDesc($2), $3, $5     , FNAT_In	    }); }
-	|	OUT IDENT IDENT 						{ $$ = ast->push<FnDeclArgVarDecl>({TypeDesc($2), $3, nullptr, FNAT_Out     }); }
-	|	OUT IDENT IDENT '=' expr				{ $$ = ast->push<FnDeclArgVarDecl>({TypeDesc($2), $3, $5     , FNAT_Out     }); }
-	|	INOUT IDENT IDENT 						{ $$ = ast->push<FnDeclArgVarDecl>({TypeDesc($2), $3, nullptr, FNAT_InOut   }); }
-	|	INOUT IDENT IDENT '=' expr				{ $$ = ast->push<FnDeclArgVarDecl>({TypeDesc($2), $3, $5     , FNAT_InOut   }); }
+		IDENT IDENT 				{ $$ = ast->push(FnDeclArgVarDecl(TypeDesc($1), $2, nullptr, FNAT_In      )); }
+	|	IDENT IDENT '=' expr		{ $$ = ast->push(FnDeclArgVarDecl(TypeDesc($1), $2, $4     , FNAT_In      )); }
+	|	IN IDENT IDENT 				{ $$ = ast->push(FnDeclArgVarDecl(TypeDesc($2), $3, nullptr, FNAT_In	  )); }
+	|	IN IDENT IDENT '=' expr		{ $$ = ast->push(FnDeclArgVarDecl(TypeDesc($2), $3, $5     , FNAT_In	  )); }
+	|	OUT IDENT IDENT 			{ $$ = ast->push(FnDeclArgVarDecl(TypeDesc($2), $3, nullptr, FNAT_Out     )); }
+	|	OUT IDENT IDENT '=' expr	{ $$ = ast->push(FnDeclArgVarDecl(TypeDesc($2), $3, $5     , FNAT_Out     )); }
+	|	INOUT IDENT IDENT 			{ $$ = ast->push(FnDeclArgVarDecl(TypeDesc($2), $3, nullptr, FNAT_InOut   )); }
+	|	INOUT IDENT IDENT '=' expr	{ $$ = ast->push(FnDeclArgVarDecl(TypeDesc($2), $3, $5     , FNAT_InOut   )); }
 	;
 	
 	// A list of variables for the function declaration.
@@ -128,8 +128,8 @@ function_decl :
 	// A single variable(or a variable list followed by a single variable) and the optional assigment expression
 	// type var, var = expr;
 vardecl_var_list : 
-		IDENT 								{ $$ = ast->push<VarDecl>({TypeDesc(), {$1}, {nullptr}}); } // unk used for unknown
-	|	IDENT '=' expr 						{ $$ = ast->push<VarDecl>({TypeDesc(), {$1}, {$3}}); } // unk used for unknown
+		IDENT 								{ $$ = ast->push(VarDecl(TypeDesc(), $1, nullptr)); } // unk used for unknown
+	|	IDENT '=' expr 						{ $$ = ast->push(VarDecl(TypeDesc(), $1, $3)); } // unk used for unknown
 	|	vardecl_var_list ',' IDENT 			{ 
 			$1->As<VarDecl>().ident.push_back($3);
 			$1->As<VarDecl>().expr.push_back(nullptr);
@@ -181,18 +181,18 @@ stmt_list :
 expr :
 		'(' expr ')'				{ $2->inParens = true; $$ = $2; }
 	|	IDENT						{ $$ = ast->push<Ident>({$1}); }
-	|	expr OR expr				{ $$ = ast->push<ExprBin>({EBT_Or, $1, $3}); }
-	|	expr AND expr				{ $$ = ast->push<ExprBin>({EBT_And, $1, $3}); }
-	|	expr NOTEQUALS expr			{ $$ = ast->push<ExprBin>({EBT_NEquals, $1, $3}); }
-	|	expr EQUALS expr			{ $$ = ast->push<ExprBin>({EBT_Equals, $1, $3}); }
-	|	expr LE expr				{ $$ = ast->push<ExprBin>({EBT_LEquals, $1, $3}); }
-	|	expr '<' expr				{ $$ = ast->push<ExprBin>({EBT_Less, $1, $3}); }
-	|	expr GE expr				{ $$ = ast->push<ExprBin>({EBT_GEquals, $1, $3}); }
-	|	expr '>' expr				{ $$ = ast->push<ExprBin>({EBT_Greater, $1, $3}); }
-	|	expr '+' expr				{ $$ = ast->push<ExprBin>({EBT_Add, $1, $3}); } 
-	|	expr '-' expr				{ $$ = ast->push<ExprBin>({EBT_Sub, $1, $3}); } 	
-	|	expr '*' expr				{ $$ = ast->push<ExprBin>({EBT_Mul, $1, $3}); } 
-	|	expr '/' expr				{ $$ = ast->push<ExprBin>({EBT_Div, $1, $3}); }
+	|	expr OR expr				{ $$ = ast->push(ExprBin(EBT_Or, $1, $3)); }
+	|	expr AND expr				{ $$ = ast->push(ExprBin(EBT_And, $1, $3)); }
+	|	expr NOTEQUALS expr			{ $$ = ast->push(ExprBin(EBT_NEquals, $1, $3)); }
+	|	expr EQUALS expr			{ $$ = ast->push(ExprBin(EBT_Equals, $1, $3)); }
+	|	expr LE expr				{ $$ = ast->push(ExprBin(EBT_LEquals, $1, $3)); }
+	|	expr '<' expr				{ $$ = ast->push(ExprBin(EBT_Less, $1, $3)); }
+	|	expr GE expr				{ $$ = ast->push(ExprBin(EBT_GEquals, $1, $3)); }
+	|	expr '>' expr				{ $$ = ast->push(ExprBin(EBT_Greater, $1, $3)); }
+	|	expr '+' expr				{ $$ = ast->push(ExprBin(EBT_Add, $1, $3)); } 
+	|	expr '-' expr				{ $$ = ast->push(ExprBin(EBT_Sub, $1, $3)); } 	
+	|	expr '*' expr				{ $$ = ast->push(ExprBin(EBT_Mul, $1, $3)); } 
+	|	expr '/' expr				{ $$ = ast->push(ExprBin(EBT_Div, $1, $3)); }
 	|	MUL '(' expr ',' expr ')'	{ $$ = ast->push(ExprBin(EBT_MatMul, $3, $5)); }
 	|	NUM_FLOAT					{ $$ = ast->push(ExprLiteral($1)); }
 	|	NUM_INT						{ $$ = ast->push(ExprLiteral($1)); }

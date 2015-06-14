@@ -56,13 +56,6 @@ enum NodeType
 	
 };
 
-enum ExprLiteralType
-{ 
-	EL_Unknown, 
-	EL_Int, 
-	EL_Float 
-};
-
 enum ExprBinType
 { 
 	EBT_Add, 
@@ -93,6 +86,8 @@ struct TypeDesc
 	{
 		Type_Undeduced,
 		Type_NoType,
+
+		Type_void,
 	
 		Type_int,
 		Type_float,
@@ -108,7 +103,8 @@ struct TypeDesc
 
 	TypeDesc(std::string strType) : m_strType(strType)
 	{
-		if(strType == "int") m_type = Type_int;
+		if(strType == "void") m_type = Type_void;
+		else if(strType == "int") m_type = Type_int;
 		else if(strType == "float") m_type = Type_float;
 		else if(strType == "float2") m_type = Type_float2;
 		else if(strType == "float3") m_type = Type_float3;
@@ -252,8 +248,14 @@ struct Ast
 		TypeDesc type;
 	};
 
+	struct FullFuncionDesc {
+		std::string fullName;
+		TypeDesc retType;
+	};
+
 	// Declares a variable at the current scope.
-	FullVariableDesc declareVariable(const TypeDesc& td, std::string name);
+	FullVariableDesc declareVariable(const TypeDesc& td, const std::string& name);
+	void declareFunction(const TypeDesc& returnType, const std::string& name);
 	
 	const FullVariableDesc& findVarInCurrentScope(const std::string& name);
 
@@ -266,6 +268,7 @@ struct Ast
 
 	std::vector<std::string> scope;
 	std::vector<FullVariableDesc> declaredVariables;
+	std::vector<FullFuncionDesc> declaredFunctions;
 };
 
 
@@ -295,6 +298,9 @@ struct ExprBin
 	ExprBinType type;
 	Node* left;
 	Node* right;
+
+
+	TypeDesc resolvedType;
 };
 
 // Function calls in expressions.
@@ -305,6 +311,8 @@ struct FuncCall
 
 	std::string fnName;
 	std::vector<Node*> args;
+
+	TypeDesc resolvedType;
 };
 
 // Literal value
@@ -312,21 +320,21 @@ struct ExprLiteral
 {
 	enum { MyNodeType = NT_ExprLiteral };
 
-	ExprLiteralType type; 
-
 	union
 	{
 		int int_val;
 		float float_val;
 	};
 
-	ExprLiteral() : type(EL_Unknown) {}
-	ExprLiteral(float f) : type(EL_Float), float_val(f) {}
-	ExprLiteral(int i) : type(EL_Int), int_val(i) {}
+	ExprLiteral() : type() {}
+	ExprLiteral(float f) : type("float"), float_val(f) {}
+	ExprLiteral(int i) : type("int"), int_val(i) {}
+
+	TypeDesc type;
 };
 
 //---------------------------------------------------------------------------------
-// Statements
+// Statementsd
 //---------------------------------------------------------------------------------
 struct Assign
 {
@@ -335,6 +343,8 @@ struct Assign
 	std::string ident;
 	Node* expr;
 };
+
+template<> void NodeDeclare<Assign>(Ast* ast, Assign& data);
 
 struct StmtIf
 {
@@ -421,6 +431,8 @@ struct FuncDecl
 	Node* stmt; // the body of the function.
 };
 
+template<>
+void NodeDeclare<FuncDecl>(Ast* ast, FuncDecl& data);
 
 struct ProgramElem
 {
@@ -460,5 +472,4 @@ std::string NodeGenerateCode<FuncDecl>(const LangSetting& lang, FuncDecl& data);
 template<>
 std::string NodeGenerateCode<ProgramElem>(const LangSetting& lang, ProgramElem& data);
 
-template<>
-void NodeDeclare<FuncDecl>(Ast* ast, FuncDecl& data);
+

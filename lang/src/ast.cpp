@@ -8,13 +8,13 @@ void Node::NodeDeclare(Ast* ast) {
 	if(inBlock) ast->declPopScope();
 }
 
-Ast::FullVariableDesc Ast::declareVariable(const TypeDesc& td, std::string name)
+Ast::FullVariableDesc Ast::declareVariable(const TypeDesc& td, const std::string& name)
 {
 	FullVariableDesc fvd;
 	fvd.type = td;
 
 	for(auto s : scope) {
-		fvd.fullName += s + '.';
+		fvd.fullName += s + "::";
 		fvd.depth++;
 	}
 
@@ -23,6 +23,11 @@ Ast::FullVariableDesc Ast::declareVariable(const TypeDesc& td, std::string name)
 	declaredVariables.push_back(fvd);
 
 	return fvd;
+}
+
+void Ast::declareFunction(const TypeDesc& returnType, const std::string& name)
+{
+	declaredFunctions.push_back({name, returnType});
 }
 
 //------------------------------------------------------------------------------
@@ -88,7 +93,7 @@ template<>
 std::string NodeGenerateCode<ExprLiteral>(const LangSetting& lang, ExprLiteral& data)
 {
 	char buff[64] = {0};
-	if(data.type == EL_Float)
+	if(data.type.GetBuildInType() == TypeDesc::Type_float)
 	{
 		sprintf(buff, "%f", data.float_val);
 
@@ -102,7 +107,7 @@ std::string NodeGenerateCode<ExprLiteral>(const LangSetting& lang, ExprLiteral& 
 
 		return buff;
 	}
-	else if(data.type == EL_Int)
+	else if(data.type.GetBuildInType() == TypeDesc::Type_int)
 	{
 		sprintf(buff, "%d", data.int_val);
 		return buff;
@@ -118,6 +123,11 @@ template<>
 std::string NodeGenerateCode<Assign>(const LangSetting& lang, Assign& data)
 {
 	return data.ident + " = " + data.expr->NodeGenerateCode(lang);
+}
+
+template<> void NodeDeclare<Assign>(Ast* ast, Assign& data)
+{
+	data.expr->NodeDeclare(ast);
 }
 
 //------------------------------------------------------------------------------
@@ -292,6 +302,8 @@ template<>
 void NodeDeclare<FuncDecl>(Ast* ast, FuncDecl& data)
 {
 	ast->declPushScope(data.name);
+
+	ast->declareFunction(data.retType, data.name);
 
 	for(auto& var : data.args) var->NodeDeclare(ast);
 	data.stmt->NodeDeclare(ast);

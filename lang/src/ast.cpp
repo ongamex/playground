@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+
 #include "ast.h"
 
 void Node::NodeDeclare(Ast* ast)
@@ -12,14 +14,17 @@ void Node::NodeDeclare(Ast* ast)
 Ast::FullVariableDesc Ast::declareVariable(const TypeDesc& td, const std::string& name)
 {
 	FullVariableDesc fvd;
-	fvd.type = td;
 
-	for(auto s : scope) {
-		fvd.fullName += s + "::";
-		fvd.depth++;
-	}
+	for(auto s : scope) fvd.fullName += s + "::";
 
 	fvd.fullName += name;
+	fvd.type = td;
+
+	std::find_if(begin(declaredVariables), end(declaredVariables), [&fvd, &name](FullVariableDesc v) {
+		const bool equal = fvd.fullName == v.fullName;
+		if(equal) throw ParseExcept("Variable with name '" + name + "' is already defined!");
+		return equal;
+	});
 
 	declaredVariables.push_back(fvd);
 
@@ -67,7 +72,7 @@ void Ast::declareFunction(const TypeDesc& returnType, const std::string& name)
 //
 //------------------------------------------------------------------------------
 template<>
-std::string NodeGenerateCode<Ident>(const LangSetting& lang, Ident& data)
+std::string NodeGenerateCode<Ident>(const LangSettings& lang, Ident& data)
 {
 	return data.identifier;
 }
@@ -87,7 +92,7 @@ template<> TypeDesc NodeDeduceType<Ident>(Ident& data)
 //
 //-----------------------------------------------------------------------
 template<>
-std::string NodeGenerateCode<ExprBin>(const LangSetting& lang, ExprBin& data)
+std::string NodeGenerateCode<ExprBin>(const LangSettings& lang, ExprBin& data)
 {
 	Node* left = data.left;
 	Node* right = data.right;
@@ -95,11 +100,11 @@ std::string NodeGenerateCode<ExprBin>(const LangSetting& lang, ExprBin& data)
 	switch(data.type) {
 		case EBT_Add :      return left->NodeGenerateCode(lang) + (" + ") + right->NodeGenerateCode(lang);
 		case EBT_Sub :      return left->NodeGenerateCode(lang) + (" - ") + right->NodeGenerateCode(lang);
-		case EBT_MatMul :   return "mul(" + left->NodeGenerateCode(lang) + "," + right->NodeGenerateCode(lang) + ")"; 
 		case EBT_Mul :
 		{
-			if(left->NodeDeduceType().GetBuildInType() == TypeDesc::Type_mat4f || 
-				right->NodeDeduceType().GetBuildInType() == TypeDesc::Type_mat4f)
+			const bool isMatrixExpr = left->NodeDeduceType().GetBuiltInType() == TypeDesc::Type_mat4f || right->NodeDeduceType().GetBuiltInType() == TypeDesc::Type_mat4f;
+
+			if(lang.outputLanguage == OL_HLSL && isMatrixExpr)
 			{
 				return "mul(" + left->NodeGenerateCode(lang) + "," + right->NodeGenerateCode(lang) + ")";
 			}
@@ -138,7 +143,7 @@ template<> TypeDesc NodeDeduceType<ExprBin>(ExprBin& data)
 //------------------------------------------------------------------------------
 //
 //------------------------------------------------------------------------------
-template<> std::string NodeGenerateCode<FuncCall>(const LangSetting& lang, FuncCall& data)
+template<> std::string NodeGenerateCode<FuncCall>(const LangSettings& lang, FuncCall& data)
 {
 	std::string retval = data.fnName + '(';
 	
@@ -167,10 +172,10 @@ template<> TypeDesc NodeDeduceType(FuncCall& data)
 //
 //------------------------------------------------------------------------------
 template<>
-std::string NodeGenerateCode<ExprLiteral>(const LangSetting& lang, ExprLiteral& data)
+std::string NodeGenerateCode<ExprLiteral>(const LangSettings& lang, ExprLiteral& data)
 {
 	char buff[64] = {0};
-	if(data.type.GetBuildInType() == TypeDesc::Type_float)
+	if(data.type.GetBuiltInType() == TypeDesc::Type_float)
 	{
 		sprintf(buff, "%f", data.float_val);
 
@@ -184,7 +189,7 @@ std::string NodeGenerateCode<ExprLiteral>(const LangSetting& lang, ExprLiteral& 
 
 		return buff;
 	}
-	else if(data.type.GetBuildInType() == TypeDesc::Type_int)
+	else if(data.type.GetBuiltInType() == TypeDesc::Type_int)
 	{
 		sprintf(buff, "%d", data.int_val);
 		return buff;
@@ -201,7 +206,7 @@ template<> TypeDesc NodeDeduceType(ExprLiteral& data) {
 //
 //------------------------------------------------------------------------------
 template<>
-std::string NodeGenerateCode<Assign>(const LangSetting& lang, Assign& data)
+std::string NodeGenerateCode<Assign>(const LangSettings& lang, Assign& data)
 {
 	return data.ident + " = " + data.expr->NodeGenerateCode(lang);
 }
@@ -215,7 +220,7 @@ template<> void NodeDeclare<Assign>(Ast* ast, Assign& data)
 //
 //------------------------------------------------------------------------------
 template<>
-std::string NodeGenerateCode<StmtIf>(const LangSetting& lang, StmtIf& data)
+std::string NodeGenerateCode<StmtIf>(const LangSettings& lang, StmtIf& data)
 {
 	std::string retval = "if(" + data.expr->NodeGenerateCode(lang) + ")";
 	if(data.trueStmt) retval += data.trueStmt->NodeGenerateCode(lang); else retval += ';';
@@ -244,7 +249,7 @@ template<> void NodeDeclare<StmtIf>(Ast* ast, StmtIf& data)
 //
 //------------------------------------------------------------------------------
 template<>
-std::string NodeGenerateCode<StmtWhile>(const LangSetting& lang, StmtWhile& data)
+std::string NodeGenerateCode<StmtWhile>(const LangSettings& lang, StmtWhile& data)
 {
 	std::string retval = "while(" + data.expr->NodeGenerateCode(lang) + ")";
 	if(data.bodyStmt) retval += data.bodyStmt->NodeGenerateCode(lang); 
@@ -266,7 +271,7 @@ template<> void NodeDeclare<StmtWhile>(Ast* ast, StmtWhile& data)
 //
 //------------------------------------------------------------------------------
 template<>
-std::string NodeGenerateCode<StmtFor>(const LangSetting& lang, StmtFor& data)
+std::string NodeGenerateCode<StmtFor>(const LangSettings& lang, StmtFor& data)
 {
 	std::string retval = "for(";
 	if(data.vardecl) retval +=  data.vardecl->NodeGenerateCode(lang); retval += ';';
@@ -299,7 +304,7 @@ template<> void NodeDeclare<StmtFor>(Ast* ast, StmtFor& data)
 //
 //------------------------------------------------------------------------------
 template<>
-std::string NodeGenerateCode<StmtList>(const LangSetting& lang, StmtList& data)
+std::string NodeGenerateCode<StmtList>(const LangSettings& lang, StmtList& data)
 {
 	std::string retval;
 	for(auto& node : data.nodes) retval += node->NodeGenerateCode(lang);
@@ -315,9 +320,9 @@ template<> void NodeDeclare<StmtList>(Ast* ast, StmtList& data)
 //
 //------------------------------------------------------------------------------
 template<>
-std::string NodeGenerateCode<VarDecl>(const LangSetting& lang, VarDecl& data)
+std::string NodeGenerateCode<VarDecl>(const LangSettings& lang, VarDecl& data)
 {
-	std::string retval = data.type.GetTypeAsString() + " ";
+	std::string retval = data.type.GetTypeAsString(lang) + " ";
 
 	for(int t = 0; t < data.ident.size(); ++t)
 	{
@@ -344,13 +349,13 @@ template<> void NodeDeclare<VarDecl>(Ast* ast, VarDecl& data)
 //
 //------------------------------------------------------------------------------
 template<>
-std::string NodeGenerateCode<FnDeclArgVarDecl>(const LangSetting& lang, FnDeclArgVarDecl& data)
+std::string NodeGenerateCode<FnDeclArgVarDecl>(const LangSettings& lang, FnDeclArgVarDecl& data)
 {
 	std::string retval;
 	if(data.argType == FNAT_InOut) retval += "inout ";
 	if(data.argType == FNAT_Out) retval += "out ";
 
-	retval += data.type.GetTypeAsString() + " " + data.ident;
+	retval += data.type.GetTypeAsString(lang) + " " + data.ident;
 	if(data.expr) retval += "=" + data.expr->NodeGenerateCode(lang);
 	return retval;
 }
@@ -364,9 +369,9 @@ void NodeDeclare(Ast* ast, FnDeclArgVarDecl& data) {
 //
 //------------------------------------------------------------------------------
 template<>
-std::string NodeGenerateCode<FuncDecl>(const LangSetting& lang, FuncDecl& data)
+std::string NodeGenerateCode<FuncDecl>(const LangSettings& lang, FuncDecl& data)
 {
-	std::string retval = data.retType.GetTypeAsString() + " " + data.name + "(";
+	std::string retval = data.retType.GetTypeAsString(lang) + " " + data.name + "(";
 
 	for(int t = 0; t < data.args.size(); ++t) {
 		
@@ -397,7 +402,7 @@ void NodeDeclare<FuncDecl>(Ast* ast, FuncDecl& data)
 //
 //------------------------------------------------------------------------------
 template<>
-std::string NodeGenerateCode<ProgramElem>(const LangSetting& lang, ProgramElem& data)
+std::string NodeGenerateCode<ProgramElem>(const LangSettings& lang, ProgramElem& data)
 {
 	std::string retval;
 
@@ -423,7 +428,7 @@ void NodeDeclare<ProgramElem>(Ast* ast, ProgramElem& data)
 // Declared in lang.y
 bool LangParseExpression(const char* code, Ast* ast);
 
-std::string GenerateCode(const LangSetting& lang, const char* code)
+std::string GenerateCode(const LangSettings& lang, const char* code)
 {
 	try 
 	{

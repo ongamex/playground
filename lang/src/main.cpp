@@ -46,14 +46,17 @@ int main()
 	Ast ast;
 
 char* code = R"(
-mat4f getm() {x = 10;}
+mat4f getm() { x = 10; }
 void f() {
 	mat4f m;
 	vec4f v;
 	v = m * v * (getm() * v);
 }
 )";
-	std::string formatted = FormatCode(GenerateCode(LangSetting(), code).c_str());
+	LangSettings lang;
+	lang.outputLanguage = OL_HLSL;
+
+	std::string formatted = FormatCode(GenerateCode(lang, code).c_str());
 
 	std::cout << formatted;
 	std::cin.get();

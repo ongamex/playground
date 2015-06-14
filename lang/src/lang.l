@@ -21,7 +21,6 @@ void yyerror (yyscan_t yyscanner, char const *msg);
 "in"													return IN;
 "out"													return OUT;
 "inout"													return INOUT;
-"mul"													return MUL;
 "attribute"												return ATTRIBUTE;
 "varying"												return VARYING;
 "uniform"												return UNIFORM;

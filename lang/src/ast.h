@@ -17,6 +17,17 @@ struct ParseExcept : public std::exception {
 	{}
 };
 
+enum OutputLanguage
+{
+	OL_HLSL,
+	OL_GLSL
+};
+
+struct LangSettings
+{
+	OutputLanguage outputLanguage;
+};
+
 struct TypeDesc
 {
 	enum Type
@@ -25,14 +36,13 @@ struct TypeDesc
 		Type_NoType,
 
 		Type_void,
-	
 		Type_int,
 		Type_float,
 		Type_vec2f,
 		Type_vec3f,
 		Type_vec4f,
-
 		Type_mat4f,
+
 		Type_UserDefined,
 	};
 
@@ -62,8 +72,8 @@ struct TypeDesc
 	static TypeDesc ResolveType(const TypeDesc& left, const TypeDesc& right)
 	{
 		auto isPairOf = [left, right](Type a, Type b) {
-			return (left.GetBuildInType() == a && right.GetBuildInType() == b) ||
-					(left.GetBuildInType() == b && right.GetBuildInType() == a);
+			return (left.GetBuiltInType() == a && right.GetBuiltInType() == b) ||
+					(left.GetBuiltInType() == b && right.GetBuiltInType() == a);
 		};
 
 		if(isPairOf(Type_int, Type_float)) return TypeDesc(Type_float);
@@ -74,13 +84,23 @@ struct TypeDesc
 		return TypeDesc(Type_NoType);
 	}
 
-	std::string GetTypeAsString() const 
+	std::string GetTypeAsString(const LangSettings& lang) const 
 	{
 		if(m_strType.empty()) return "<empty-str-type>";
-		return m_strType;
+
+		if(GetBuiltInType() == Type_void)  return "void";
+		else if(GetBuiltInType() == Type_int)   return "int";
+		else if(GetBuiltInType() == Type_float) return "float";
+		else if(GetBuiltInType() == Type_vec2f) { if(lang.outputLanguage == OL_HLSL) return "float2"; else return "vec2"; }
+		else if(GetBuiltInType() == Type_vec3f) { if(lang.outputLanguage == OL_HLSL) return "float3"; else return "vec3"; }
+		else if(GetBuiltInType() == Type_vec4f) { if(lang.outputLanguage == OL_HLSL) return "float4"; else return "vec4"; }
+		else if(GetBuiltInType() == Type_mat4f) { if(lang.outputLanguage == OL_HLSL) return "float4x4"; else return "mat4"; }
+		else if(GetBuiltInType() == Type_UserDefined) return m_strType;
+
+		return "<type-unknown>";
 	}
 
-	Type GetBuildInType() const { return m_type; }
+	Type GetBuiltInType() const { return m_type; }
 
 private : 
 
@@ -88,13 +108,9 @@ private :
 	std::string m_strType;
 };
 
-struct LangSetting
-{
-
-};
 
 template<class T>
-std::string NodeGenerateCode(const LangSetting& lang, T& data) {
+std::string NodeGenerateCode(const LangSettings& lang, T& data) {
 	return std::string();
 }
 
@@ -107,46 +123,14 @@ template<class T>
 void NodeDeclare(Ast* ast, T& data) {
 }
 
-std::string GenerateCode(const LangSetting& lang, const char* code);
+std::string GenerateCode(const LangSettings& lang, const char* code);
 
 #include "utils/variant.h"
-
-enum NodeType
-{
-	NT_None,
-
-	// expressions
-	NT_ExprLiteral,
-	NT_ExprBin,
-	NT_Assign,
-
-	NT_FuncCall,
-
-	// Statements
-	NT_If,
-	NT_While,
-	NT_For,
-
-	NT_Identifier,
-	NT_VarDecl,
-
-	NT_StmtList,
-
-	NT_Type,
-
-	NT_FuncDecl,
-	NT_FnDeclArgVarDecl,
-	NT_FuncDeclArgs,
-
-	NT_ProgramElem,
-	
-};
 
 enum ExprBinType
 { 
 	EBT_Add, 
 	EBT_Sub,
-	EBT_MatMul, // HLSL-style matrix multiplication
 	EBT_Mul, 
 	EBT_Div, 
 	EBT_Greater, 
@@ -190,8 +174,7 @@ struct Node
 	Node() {}
 
 	template<typename T>
-	Node(const NodeType& type, const T& t) :
-		type(type)
+	Node(const T& t)
 	{
 		data.ConstructAs<T>();
 		data.As<T>() = t;
@@ -200,9 +183,7 @@ struct Node
 	template<typename T>
 	T& As() { return data.As<T>(); }
 
-	std::string NodeGenerateCode(const LangSetting& lang) {
-
-		if(type == NT_None) return std::string();
+	std::string NodeGenerateCode(const LangSettings& lang) {
 		
 		std::string retval = data.NodeGenerateCode(lang);
 
@@ -218,7 +199,6 @@ struct Node
 
 	TypeDesc NodeDeduceType() { return data.NodeDeduceType(); }
 
-	NodeType type = NT_None;
 	Variant<100> data;
 
 	char exprSign = '+'; // The sign of the expression. Used for -expr for example.
@@ -238,7 +218,7 @@ struct Ast
 
 	template<typename T>
 	inline Node* push(const T t = T()) {
-		return add(new Node((NodeType)T::MyNodeType, t));
+		return add(new Node(t));
 	}
 	
 	void declPushScope() {
@@ -265,7 +245,6 @@ struct Ast
 	}
 
 	struct FullVariableDesc {
-		int depth = 0;
 		std::string fullName;
 		TypeDesc type;
 	};
@@ -302,13 +281,11 @@ struct Ast
 //-------------------------------------------------------------------------
 struct Ident
 {
-	enum { MyNodeType = NT_Identifier };
-
 	std::string identifier;
 	TypeDesc resolvedType;
 };
 
-template<> std::string NodeGenerateCode<Ident>(const LangSetting& lang, Ident& data);
+template<> std::string NodeGenerateCode<Ident>(const LangSettings& lang, Ident& data);
 template<> void NodeDeclare<Ident>(Ast* ast, Ident& data);
 template<> TypeDesc NodeDeduceType<Ident>(Ident& data);
 
@@ -319,10 +296,7 @@ template<> TypeDesc NodeDeduceType<Ident>(Ident& data);
 // Binary expression of kind: a ? b
 struct ExprBin
 {
-	enum { MyNodeType = NT_ExprBin };
-
 	ExprBin() = default;
-
 	ExprBin(ExprBinType type, Node* left, Node* right) :
 		type(type), left(left), right(right)
 	{}
@@ -335,7 +309,7 @@ struct ExprBin
 	TypeDesc resolvedType;
 };
 
-template<> std::string NodeGenerateCode<ExprBin>(const LangSetting& lang, ExprBin& data);
+template<> std::string NodeGenerateCode<ExprBin>(const LangSettings& lang, ExprBin& data);
 template<> void NodeDeclare<ExprBin>(Ast* ast, ExprBin& data);
 template<> TypeDesc NodeDeduceType<ExprBin>(ExprBin& data);
 
@@ -343,23 +317,19 @@ template<> TypeDesc NodeDeduceType<ExprBin>(ExprBin& data);
 
 struct FuncCall
 {
-	enum { MyNodeType = NT_FuncCall };
-
 	std::string fnName;
 	std::vector<Node*> args;
 
 	TypeDesc resolvedType;
 };
 
-template<> std::string NodeGenerateCode<FuncCall>(const LangSetting& lang, FuncCall& data);
+template<> std::string NodeGenerateCode<FuncCall>(const LangSettings& lang, FuncCall& data);
 template<> void NodeDeclare<FuncCall>(Ast* ast, FuncCall& data);
 template<> TypeDesc NodeDeduceType<FuncCall>(FuncCall& data);
 
 // Literal value
 struct ExprLiteral
 {
-	enum { MyNodeType = NT_ExprLiteral };
-
 	union
 	{
 		int int_val;
@@ -373,27 +343,23 @@ struct ExprLiteral
 	TypeDesc type;
 };
 
-template<> std::string NodeGenerateCode<ExprLiteral>(const LangSetting& lang, ExprLiteral& data);
+template<> std::string NodeGenerateCode<ExprLiteral>(const LangSettings& lang, ExprLiteral& data);
 template<> TypeDesc NodeDeduceType<ExprLiteral>(ExprLiteral& data);
 
 //---------------------------------------------------------------------------------
-// Statementsd
+// Statements
 //---------------------------------------------------------------------------------
 struct Assign
 {
-	enum { MyNodeType = NT_Assign };
-
 	std::string ident;
 	Node* expr;
 };
 
-template<> std::string NodeGenerateCode<Assign>(const LangSetting& lang, Assign& data);
+template<> std::string NodeGenerateCode<Assign>(const LangSettings& lang, Assign& data);
 template<> void NodeDeclare<Assign>(Ast* ast, Assign& data);
 
 struct StmtIf
 {
-	enum { MyNodeType = NT_If };
-
 	StmtIf() = default;
 	StmtIf(Node* expr, Node* trueStmt, Node* falseStmt) : expr(expr), trueStmt(trueStmt), falseStmt(falseStmt) {}
 
@@ -402,14 +368,12 @@ struct StmtIf
 	Node* falseStmt = nullptr; // optional
 };
 
-template<> std::string NodeGenerateCode<StmtIf>(const LangSetting& lang, StmtIf& data);
+template<> std::string NodeGenerateCode<StmtIf>(const LangSettings& lang, StmtIf& data);
 template<> void NodeDeclare<StmtIf>(Ast* ast, StmtIf& data);
 
 
 struct StmtWhile
 {
-	enum { MyNodeType = NT_While };
-
 	StmtWhile() = default;
 	StmtWhile(Node* expr, Node* bodyStmt) : expr(expr), bodyStmt(bodyStmt) {}
 
@@ -417,36 +381,30 @@ struct StmtWhile
 	Node* bodyStmt = nullptr;
 };
 
-template<> std::string NodeGenerateCode<StmtWhile>(const LangSetting& lang, StmtWhile& data);
+template<> std::string NodeGenerateCode<StmtWhile>(const LangSettings& lang, StmtWhile& data);
 template<> void NodeDeclare<StmtWhile>(Ast* ast, StmtWhile& data);
 
 struct StmtFor
 {
-	enum { MyNodeType = NT_For };
-
 	Node* vardecl;
 	Node* boolExpr;
 	Node* postExpr;
 	Node* stmt;
 };
 
-template<> std::string NodeGenerateCode<StmtFor>(const LangSetting& lang, StmtFor& data);
+template<> std::string NodeGenerateCode<StmtFor>(const LangSettings& lang, StmtFor& data);
 template<> void NodeDeclare<StmtFor>(Ast* ast, StmtFor& data);
 
 struct StmtList
 {
-	enum { MyNodeType = NT_StmtList };
-
 	std::vector<Node*> nodes;
 };
 
-template<> std::string NodeGenerateCode<StmtList>(const LangSetting& lang, StmtList& data);
+template<> std::string NodeGenerateCode<StmtList>(const LangSettings& lang, StmtList& data);
 template<> void NodeDeclare<StmtList>(Ast* ast, StmtList& data);
 
 struct VarDecl
 {
-	enum { MyNodeType = NT_VarDecl };
-
 	VarDecl() = default;
 
 	VarDecl(TypeDesc type, std::string firstIdent, Node* firstExpr) : 
@@ -461,13 +419,11 @@ struct VarDecl
 	std::vector<Node*> expr;
 };
 
-template<> std::string NodeGenerateCode<VarDecl>(const LangSetting& lang, VarDecl& data);
+template<> std::string NodeGenerateCode<VarDecl>(const LangSettings& lang, VarDecl& data);
 template<> void NodeDeclare<VarDecl>(Ast* ast, VarDecl& data);
 
 struct FnDeclArgVarDecl
 {
-	enum { MyNodeType = NT_FnDeclArgVarDecl };
-
 	FnDeclArgVarDecl() = default;
 
 	FnDeclArgVarDecl(TypeDesc type, const std::string& ident, Node* const expr, FnCallArgType argType) :
@@ -481,13 +437,11 @@ struct FnDeclArgVarDecl
 
 };
 
-template<> std::string NodeGenerateCode<FnDeclArgVarDecl>(const LangSetting& lang, FnDeclArgVarDecl& data);
+template<> std::string NodeGenerateCode<FnDeclArgVarDecl>(const LangSettings& lang, FnDeclArgVarDecl& data);
 template<> void NodeDeclare(Ast* ast, FnDeclArgVarDecl& data);
 
 struct FuncDecl
 {
-	enum { MyNodeType = NT_FuncDecl };
-
 	std::vector<Node*> args;
 	TypeDesc retType;//std::string retType;
 	std::string name;
@@ -495,15 +449,13 @@ struct FuncDecl
 	Node* stmt; // the body of the function.
 };
 
-template<> std::string NodeGenerateCode<FuncDecl>(const LangSetting& lang, FuncDecl& data);
+template<> std::string NodeGenerateCode<FuncDecl>(const LangSettings& lang, FuncDecl& data);
 template<> void NodeDeclare<FuncDecl>(Ast* ast, FuncDecl& data);
 
 struct ProgramElem
 {
-	enum { MyNodeType = NT_ProgramElem };
-
 	std::vector<Node*> nodes;
 };
 
-template<> std::string NodeGenerateCode<ProgramElem>(const LangSetting& lang, ProgramElem& data);
+template<> std::string NodeGenerateCode<ProgramElem>(const LangSettings& lang, ProgramElem& data);
 template<> void NodeDeclare<ProgramElem>(Ast* ast, ProgramElem& data);

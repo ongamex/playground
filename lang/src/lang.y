@@ -22,7 +22,7 @@ bool parseExpression(const std::string& inp);
 
 // Token declaration.
 %token <no_type>		AND OR LE GE EQUALS NOTEQUALS
-%token <no_type>		IF ELSE WHILE FOR IN OUT INOUT MUL
+%token <no_type>		IF ELSE WHILE FOR IN OUT INOUT
 %token <str_val>		IDENT
 %token <float_val>		NUM_FLOAT
 %token <int_val>		NUM_INT
@@ -181,7 +181,6 @@ stmt_list :
 
 expr : expr_base { $$ = $1; ast->addDeduct($1); }
 	
-	
 expr_base :
 		'(' expr_base ')'			    	{ $2->inParens = true; $$ = $2; }
 	|	IDENT					        	{ $$ = ast->push<Ident>({$1}); }
@@ -197,7 +196,6 @@ expr_base :
 	|	expr_base '-' expr_base				{ $$ = ast->push(ExprBin(EBT_Sub, $1, $3)); } 	
 	|	expr_base '*' expr_base				{ $$ = ast->push(ExprBin(EBT_Mul, $1, $3)); } 
 	|	expr_base '/' expr_base				{ $$ = ast->push(ExprBin(EBT_Div, $1, $3)); }
-	|	MUL '(' expr_base ',' expr_base ')'	{ $$ = ast->push(ExprBin(EBT_MatMul, $3, $5)); }
 	|	NUM_FLOAT					        { $$ = ast->push(ExprLiteral($1)); }
 	|	NUM_INT						        { $$ = ast->push(ExprLiteral($1)); }
 	|	expr_fncall					        { $$ = $1; }	

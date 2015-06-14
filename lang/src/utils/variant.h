@@ -34,7 +34,7 @@ struct Variant
 	template<typename T>
 	T& As() { return *((T*) object); }
 
-	std::string NodeGenerateCode(const LangSetting& lang) { 
+	std::string NodeGenerateCode(const LangSettings& lang) { 
 		return GetTypeHolder()->CallGenerateCode(object, lang); 
 	}
 
@@ -53,7 +53,7 @@ private :
 		virtual void constr(void*) const = 0;
 		virtual void destruct(void*) const = 0;
 
-		virtual std::string CallGenerateCode(void* p, const LangSetting& lang) const = 0;
+		virtual std::string CallGenerateCode(void* p, const LangSettings& lang) const = 0;
 		virtual void CallNodeDeclare(void* p, Ast* ast) const = 0;
 		virtual TypeDesc CallDeduceType(void* p) const = 0;
 	};
@@ -68,7 +68,7 @@ private :
 		void constr(void* p) const override { new (p) T; }
 		void destruct(void* p) const override { ((T*)(p))->~T(); }
 
-		std::string CallGenerateCode(void* p, const LangSetting& lang) const override {return ::NodeGenerateCode(lang, *((T*)(p))); }
+		std::string CallGenerateCode(void* p, const LangSettings& lang) const override {return ::NodeGenerateCode(lang, *((T*)(p))); }
 		void CallNodeDeclare(void* p, Ast* ast) const override { ::NodeDeclare(ast,  *((T*)(p))); }
 		TypeDesc CallDeduceType(void* p) const override { return ::NodeDeduceType(*((T*)(p))); }
 	};

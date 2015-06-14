@@ -130,7 +130,11 @@ function_decl :
 vardecl_var_list : 
 		IDENT 								{ $$ = ast->push<VarDecl>({TypeDesc(), {$1}, {nullptr}}); } // unk used for unknown
 	|	IDENT '=' expr 						{ $$ = ast->push<VarDecl>({TypeDesc(), {$1}, {$3}}); } // unk used for unknown
-	|	vardecl_var_list ',' IDENT 			{ $$->As<VarDecl>().ident.push_back($3);	}
+	|	vardecl_var_list ',' IDENT 			{ 
+			$1->As<VarDecl>().ident.push_back($3);
+			$1->As<VarDecl>().expr.push_back(nullptr);
+			$$ = $1;
+		}
 	|	vardecl_var_list ',' IDENT '=' expr	{ 
 			$$ = $1; 
 			$$->As<VarDecl>().ident.push_back($3);

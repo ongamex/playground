@@ -243,8 +243,9 @@ std::string NodeGenerateCode<VarDecl>(const LangSetting& lang, VarDecl& data)
 		retval += data.ident[t];
 		if(data.expr[t]) {
 			retval += "=" + data.expr[t]->NodeGenerateCode(lang);
-			if(t < data.ident.size() - 1) retval += ',';
 		}
+
+		if(t < data.ident.size() - 1) retval += ',';
 	}
 
 	return retval;

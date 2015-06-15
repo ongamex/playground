@@ -79,9 +79,9 @@ grammar_list :
 		
 shader_globals : 
 		// These aren't real nodes...
-		ATTRIBUTE IDENT IDENT IDENT ';'		{ $$ = nullptr; ast->vertexAttribs.push_back({$2, $3, $4}); }
-	|	VARYING	IDENT IDENT					{ $$ = nullptr; ast->varyings.push_back({$2, $3}); }
-	|	UNIFORM	IDENT IDENT					{ $$ = nullptr; ast->uniforms.push_back({$2, $3}); }
+		ATTRIBUTE IDENT IDENT ':' IDENT ';'		{ $$ = nullptr; ast->vertexAttribs.push_back({TypeDesc($2), $3, $5}); }
+	|	VARYING	IDENT IDENT	';'					{ $$ = nullptr; ast->varyings.push_back({TypeDesc($2), $3}); }
+	|	UNIFORM	IDENT IDENT	';'					{ $$ = nullptr; ast->uniforms.push_back({TypeDesc($2), $3}); }
 	;
 	
 	//-------------------------------------------------

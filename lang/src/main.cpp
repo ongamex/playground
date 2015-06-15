@@ -46,6 +46,10 @@ int main()
 	Ast ast;
 
 char* code = R"(
+
+uniform Texture2D diffuseTex;
+uniform mat4f world;
+
 mat4f getm() { x = 10; }
 void f() {
 	mat4f m;

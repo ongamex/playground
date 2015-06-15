@@ -11,6 +11,26 @@ void Node::NodeDeclare(Ast* ast)
 	if(inBlock) ast->declPopScope();
 }
 
+std::string Ast::GenerateUniforms(const LangSettings& lang)
+{
+	std::string result;
+
+	for(const auto& unif : uniforms)
+	{
+		result += "uniform " + unif.type.GetTypeAsString(lang) + " " + unif.varName + ";";
+
+		if(lang.outputLanguage == OL_HLSL)
+		{
+			//[TODO] Arrays...
+			if(unif.type.GetBuiltInType() == TypeDesc::Type_Texture2D) {
+				result += "uniform sampler " + unif.varName  + "_sgeSS;";
+			}
+		}
+	}
+
+	return result;
+}
+
 Ast::FullVariableDesc Ast::declareVariable(const TypeDesc& td, const std::string& name)
 {
 	FullVariableDesc fvd;
@@ -157,7 +177,30 @@ template<> void NodeDeclare<ExprBin>(Ast* ast, ExprBin& data)
 
 template<> TypeDesc NodeDeduceType<ExprBin>(ExprBin& data)
 {
-	if(data.resolvedType == TypeDesc()) data.resolvedType = TypeDesc::ResolveType(data.left->NodeDeduceType(), data.right->NodeDeduceType());
+	if(data.resolvedType != TypeDesc()) return data.resolvedType;
+
+	switch(data.type)
+	{
+		case EBT_Add : 
+		case EBT_Sub :
+		case EBT_Mul : 
+		case EBT_Div : 
+			if(data.resolvedType == TypeDesc()) data.resolvedType = TypeDesc::ResolveType(data.left->NodeDeduceType(), data.right->NodeDeduceType());
+			break;
+		case EBT_Greater :
+		case EBT_GEquals : 
+		case EBT_Less :
+		case EBT_LEquals :
+		case EBT_Equals :
+		case EBT_NEquals :
+		case EBT_Or :
+		case EBT_And :
+			data.resolvedType = TypeDesc(TypeDesc::Type_bool);
+			break;
+		default :
+			throw ParseExcept("Unknown type");
+	}
+
 	return data.resolvedType;
 }
 
@@ -459,7 +502,9 @@ std::string GenerateCode(const LangSettings& lang, const char* code)
 		
 		for(auto n : ast.deductionQueue) n->NodeDeduceType();
 
-		return ast.program->NodeGenerateCode(lang);
+		std::string code;
+		code = ast.GenerateUniforms(lang) + ast.program->NodeGenerateCode(lang);
+		return code;
 	}
 	catch(const std::exception& e) {
 		printf(e.what());

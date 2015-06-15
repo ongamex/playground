@@ -44,11 +44,13 @@ struct TypeDesc
 
 		Type_void,
 		Type_int,
+		Type_bool,
 		Type_float,
 		Type_vec2f,
 		Type_vec3f,
 		Type_vec4f,
 		Type_mat4f,
+		Type_Texture2D,
 
 		Type_UserDefined,
 	};
@@ -59,15 +61,14 @@ struct TypeDesc
 	{
 		if(strType == "void") m_type = Type_void;
 		else if(strType == "int") m_type = Type_int;
+		else if(strType == "bool") m_type = Type_bool;
 		else if(strType == "float") m_type = Type_float;
 		else if(strType == "vec2f") m_type = Type_vec2f;
 		else if(strType == "vec3f") m_type = Type_vec3f;
 		else if(strType == "vec4f") m_type = Type_vec4f;
 		else if(strType == "mat4f") m_type = Type_mat4f;
-		else {
-			strType = "<undeduced_type>";
-			//m_type = Type_Undeduced;
-		}
+		else if(strType == "Texture2D") m_type = Type_Texture2D;
+		else { m_type = Type_UserDefined; }
 	}
 
 	bool operator==(const TypeDesc& other) const
@@ -76,8 +77,14 @@ struct TypeDesc
 		return m_strType == other.m_strType;
 	}
 
+	bool operator!=(const TypeDesc& other) const
+	{
+		return !(*this == other);
+	}
+
 	static TypeDesc ResolveType(const TypeDesc& left, const TypeDesc& right)
 	{
+		//[TODO] This is sooo broken....
 		auto isPairOf = [left, right](Type a, Type b) {
 			return (left.GetBuiltInType() == a && right.GetBuiltInType() == b) ||
 					(left.GetBuiltInType() == b && right.GetBuiltInType() == a);
@@ -96,6 +103,7 @@ struct TypeDesc
 
 	static TypeDesc GetMemberType(const TypeDesc& parent, const std::string& member)
 	{
+		//[TODO] This is sooo broken....
 		const bool isFloatVectorType = 
 			   (parent.GetBuiltInType() == Type_vec2f) 
 			|| (parent.GetBuiltInType() == Type_vec3f) 
@@ -124,13 +132,15 @@ struct TypeDesc
 	{
 		if(m_strType.empty()) return "<empty-str-type>";
 
-		if(GetBuiltInType() == Type_void)  return "void";
-		else if(GetBuiltInType() == Type_int)   return "int";
+		if(GetBuiltInType() == Type_void) return "void";
+		else if(GetBuiltInType() == Type_int) return "int";
 		else if(GetBuiltInType() == Type_float) return "float";
+		else if(GetBuiltInType() == Type_bool) return "bool";
 		else if(GetBuiltInType() == Type_vec2f) { if(lang.outputLanguage == OL_HLSL) return "float2"; else return "vec2"; }
 		else if(GetBuiltInType() == Type_vec3f) { if(lang.outputLanguage == OL_HLSL) return "float3"; else return "vec3"; }
 		else if(GetBuiltInType() == Type_vec4f) { if(lang.outputLanguage == OL_HLSL) return "float4"; else return "vec4"; }
 		else if(GetBuiltInType() == Type_mat4f) { if(lang.outputLanguage == OL_HLSL) return "float4x4"; else return "mat4"; }
+		else if(GetBuiltInType() == Type_Texture2D) { if(lang.outputLanguage == OL_HLSL) return "Texture2D"; else return "sampler2D"; } 
 		else if(GetBuiltInType() == Type_UserDefined) return m_strType;
 
 		return "<type-unknown>";
@@ -188,20 +198,20 @@ enum FnCallArgType
 
 struct VertexAttribs
 {
-	std::string type;
+	TypeDesc type;
 	std::string varName;
 	std::string semantic;
 };
 
 struct Varyings
 {
-	std::string type;
+	TypeDesc type;
 	std::string varName;
 };
 
 struct Uniforms
 {
-	std::string type;
+	TypeDesc type;
 	std::string varName;
 };
 
@@ -289,6 +299,8 @@ struct Ast
 		std::string fullName;
 		TypeDesc retType;
 	};
+
+	std::string GenerateUniforms(const LangSettings& lang);
 
 	// Declares a variable at the current scope.
 	FullVariableDesc declareVariable(const TypeDesc& td, const std::string& name);

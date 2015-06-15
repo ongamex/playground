@@ -33,7 +33,7 @@ void yyerror (yyscan_t yyscanner, char const *msg);
 ">="													return GE;
 "=="													return EQUALS;
 "!="													return NOTEQUALS;
-[-()<>=+*/;{},] 										return *yytext;
+[-()<>=+*/;{},.] 										return *yytext;
 %%
 
 int yywrap(yyscan_t yyscanner)

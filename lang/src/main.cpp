@@ -50,7 +50,7 @@ mat4f getm() { x = 10; }
 void f() {
 	mat4f m;
 	vec4f v;
-	v = m * v * (getm() * v);
+	v = m * v.xx * (getm() * v);
 }
 )";
 	LangSettings lang;

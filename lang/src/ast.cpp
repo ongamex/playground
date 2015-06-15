@@ -68,9 +68,9 @@ void Ast::declareFunction(const TypeDesc& returnType, const std::string& name)
 	declaredFunctions.push_back({name, returnType});
 }
 
-//------------------------------------------------------------------------------
+//-----------------------------------------------------------------------
 //
-//------------------------------------------------------------------------------
+//-----------------------------------------------------------------------
 template<>
 std::string NodeGenerateCode<Ident>(const LangSettings& lang, Ident& data)
 {
@@ -91,6 +91,27 @@ template<> TypeDesc NodeDeduceType<Ident>(Ident& data)
 //-----------------------------------------------------------------------
 //
 //-----------------------------------------------------------------------
+template<> std::string NodeGenerateCode<ExprMemberAccess>(const LangSettings& lang, ExprMemberAccess& data)
+{
+	return data.expr->NodeGenerateCode(lang) + "." + data.member;
+}
+
+template<> void NodeDeclare<ExprMemberAccess>(Ast* ast, ExprMemberAccess& data)
+{
+	data.expr->NodeDeclare(ast);
+}
+
+template<> TypeDesc NodeDeduceType<ExprMemberAccess>(ExprMemberAccess& data)
+{
+	if(data.resolvedType == TypeDesc())
+	data.resolvedType = TypeDesc::GetMemberType(data.expr->NodeDeduceType(), data.member);
+	return data.resolvedType;
+
+}
+
+//-----------------------------------------------------------------------
+//
+//-----------------------------------------------------------------------
 template<>
 std::string NodeGenerateCode<ExprBin>(const LangSettings& lang, ExprBin& data)
 {
@@ -98,8 +119,8 @@ std::string NodeGenerateCode<ExprBin>(const LangSettings& lang, ExprBin& data)
 	Node* right = data.right;
 
 	switch(data.type) {
-		case EBT_Add :      return left->NodeGenerateCode(lang) + (" + ") + right->NodeGenerateCode(lang);
-		case EBT_Sub :      return left->NodeGenerateCode(lang) + (" - ") + right->NodeGenerateCode(lang);
+		case EBT_Add : return left->NodeGenerateCode(lang) + (" + ") + right->NodeGenerateCode(lang);
+		case EBT_Sub : return left->NodeGenerateCode(lang) + (" - ") + right->NodeGenerateCode(lang);
 		case EBT_Mul :
 		{
 			const bool isMatrixExpr = left->NodeDeduceType().GetBuiltInType() == TypeDesc::Type_mat4f || right->NodeDeduceType().GetBuiltInType() == TypeDesc::Type_mat4f;

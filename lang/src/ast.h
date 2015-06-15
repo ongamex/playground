@@ -23,9 +23,16 @@ enum OutputLanguage
 	OL_GLSL
 };
 
+enum ShaderType
+{
+	ST_Vertex,
+	ST_Pixel,
+};
+
 struct LangSettings
 {
 	OutputLanguage outputLanguage;
+	ShaderType shaderType;
 };
 
 struct TypeDesc
@@ -77,11 +84,40 @@ struct TypeDesc
 		};
 
 		if(isPairOf(Type_int, Type_float)) return TypeDesc(Type_float);
+		else if(isPairOf(Type_float, Type_vec2f)) return TypeDesc(Type_vec2f);
+		else if(isPairOf(Type_float, Type_vec3f)) return TypeDesc(Type_vec3f);
+		else if(isPairOf(Type_float, Type_vec4f)) return TypeDesc(Type_vec4f);
 		else if(isPairOf(Type_mat4f, Type_vec4f)) return TypeDesc(Type_vec4f);
 		else if(left == right) return left;
 
 		// Unknown expression cofiguration
 		return TypeDesc(Type_NoType);
+	}
+
+	static TypeDesc GetMemberType(const TypeDesc& parent, const std::string& member)
+	{
+		const bool isFloatVectorType = 
+			   (parent.GetBuiltInType() == Type_vec2f) 
+			|| (parent.GetBuiltInType() == Type_vec3f) 
+			|| (parent.GetBuiltInType() == Type_vec4f);
+
+		if(isFloatVectorType)
+		{
+			if(member.size() <= 4)
+			{
+				for(auto ch : member) {
+					if(ch != 'x' && ch != 'y' && ch != 'z' && ch != 'w') {
+						throw ParseExcept("Trying to reference unexisting member: " + member);
+					}
+				}
+
+				if(member.size() == 2) return TypeDesc(Type_vec2f);
+				if(member.size() == 3) return TypeDesc(Type_vec3f);
+				if(member.size() == 4) return TypeDesc(Type_vec4f);
+			}
+		}
+
+		throw ParseExcept("Unknown member access: " + member);
 	}
 
 	std::string GetTypeAsString(const LangSettings& lang) const 
@@ -288,6 +324,23 @@ struct Ident
 template<> std::string NodeGenerateCode<Ident>(const LangSettings& lang, Ident& data);
 template<> void NodeDeclare<Ident>(Ast* ast, Ident& data);
 template<> TypeDesc NodeDeduceType<Ident>(Ident& data);
+
+struct ExprMemberAccess
+{
+	ExprMemberAccess() = default;
+	ExprMemberAccess(Node* expr, const std::string& member) :
+		expr(expr), member(member)
+	{}
+
+	Node* expr;
+	std::string member;
+
+	TypeDesc resolvedType; 
+};
+
+template<> std::string NodeGenerateCode<ExprMemberAccess>(const LangSettings& lang, ExprMemberAccess& data);
+template<> void NodeDeclare<ExprMemberAccess>(Ast* ast, ExprMemberAccess& data);
+template<> TypeDesc NodeDeduceType<ExprMemberAccess>(ExprMemberAccess& data);
 
 //---------------------------------------------------------------------------------
 // Expressions

@@ -29,11 +29,13 @@ bool parseExpression(const std::string& inp);
 %token <no_type>		ATTRIBUTE VARYING UNIFORM
 
 // Token precedence.
+
 %left AND OR
 %left EQUALS NOTEQUALS
 %left LE '<' GE '>'
 %left '+' '-'
 %left '*' '/'
+%left '.'
 
 // Grammar expression types (from yystype).
 %type <node>	fncall_args expr_fncall fndecl_vardecl_var fndecl_vardecl
@@ -183,6 +185,7 @@ expr : expr_base { $$ = $1; ast->addDeduct($1); }
 	
 expr_base :
 		'(' expr_base ')'			    	{ $2->inParens = true; $$ = $2; }
+	|	expr_base '.' IDENT					{ $$ = ast->push(ExprMemberAccess($1, $3));}
 	|	IDENT					        	{ $$ = ast->push<Ident>({$1}); }
 	|	expr_base OR expr_base			    { $$ = ast->push(ExprBin(EBT_Or, $1, $3)); }
 	|	expr_base AND expr_base			    { $$ = ast->push(ExprBin(EBT_And, $1, $3)); }

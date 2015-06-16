@@ -12,7 +12,11 @@ void yyerror (yyscan_t yyscanner, char const *msg);
 %}
 
 %%
-
+\"(\\.|[^"])*\"		{ 
+						// remove the heading and trailing "
+						yylval->str_val = std::string(yytext+1); yylval->str_val.pop_back(); 
+						return CODE_STRING; 
+					}
 [ \t\n]													;
 "for"													return FOR;
 "if"													return IF;
@@ -24,6 +28,7 @@ void yyerror (yyscan_t yyscanner, char const *msg);
 "attribute"												return ATTRIBUTE;
 "varying"												return VARYING;
 "uniform"												return UNIFORM;
+"native_code"											return NATIVE_CODE;
 [_a-zA-Z][_a-zA-z0-9]*									{ yylval->str_val = std::string(yytext); return IDENT; }
 [0-9][0-9]*(\.[0-9]+)([eE][0-9][0-9]*)?					{ yylval->float_val = atof(yytext); return NUM_FLOAT; }
 [0-9][0-9]*												{ yylval->int_val = atoi(yytext); return NUM_INT; }

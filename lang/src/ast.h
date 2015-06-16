@@ -300,7 +300,7 @@ struct Ast
 		TypeDesc retType;
 	};
 
-	std::string GenerateUniforms(const LangSettings& lang);
+	std::string GenerateGlobalUniforms(const LangSettings& lang);
 
 	// Declares a variable at the current scope.
 	FullVariableDesc declareVariable(const TypeDesc& td, const std::string& name);
@@ -309,7 +309,7 @@ struct Ast
 	const FullVariableDesc& findVarInCurrentScope(const std::string& name);
 	const FullFuncionDesc& findFuncDecl(const std::string& name);
 
-	Node* program;
+	Node* program = nullptr;
 	std::vector<Node*> nodes;
 
 	std::vector<VertexAttribs> vertexAttribs;
@@ -422,6 +422,16 @@ struct Assign
 
 template<> std::string NodeGenerateCode<Assign>(const LangSettings& lang, Assign& data);
 template<> void NodeDeclare<Assign>(Ast* ast, Assign& data);
+
+struct StmtNativeCode
+{
+	StmtNativeCode() = default;
+	StmtNativeCode(const std::string& code) : code(code) {}
+
+	std::string code;
+};
+
+template<> std::string NodeGenerateCode<StmtNativeCode>(const LangSettings& lang, StmtNativeCode& data);
 
 struct StmtIf
 {

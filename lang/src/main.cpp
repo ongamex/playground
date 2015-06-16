@@ -51,9 +51,11 @@ uniform Texture2D diffuseTex;
 uniform mat4f world;
 
 mat4f getm() { x = 10; }
+
 void f() {
 	mat4f m;
 	vec4f v;
+	native_code("blaaa");
 	v = m * v.xx * (getm() * v);
 }
 )";

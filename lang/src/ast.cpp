@@ -11,7 +11,7 @@ void Node::NodeDeclare(Ast* ast)
 	if(inBlock) ast->declPopScope();
 }
 
-std::string Ast::GenerateUniforms(const LangSettings& lang)
+std::string Ast::GenerateGlobalUniforms(const LangSettings& lang)
 {
 	std::string result;
 
@@ -284,6 +284,15 @@ template<> void NodeDeclare<Assign>(Ast* ast, Assign& data)
 //
 //------------------------------------------------------------------------------
 template<>
+std::string NodeGenerateCode<StmtNativeCode>(const LangSettings& lang, StmtNativeCode& data)
+{
+	return data.code;
+}
+
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
+template<>
 std::string NodeGenerateCode<StmtIf>(const LangSettings& lang, StmtIf& data)
 {
 	std::string retval = "if(" + data.expr->NodeGenerateCode(lang) + ")";
@@ -498,12 +507,19 @@ std::string GenerateCode(const LangSettings& lang, const char* code)
 	{
 		Ast ast;
 		LangParseExpression(code, &ast);
+
+
+		if(!ast.program)
+		{
+			throw ParseExcept("Failed while compiling program!");
+		}
+
 		ast.program->NodeDeclare(&ast);
 		
 		for(auto n : ast.deductionQueue) n->NodeDeduceType();
 
 		std::string code;
-		code = ast.GenerateUniforms(lang) + ast.program->NodeGenerateCode(lang);
+		code = ast.GenerateGlobalUniforms(lang) + ast.program->NodeGenerateCode(lang);
 		return code;
 	}
 	catch(const std::exception& e) {

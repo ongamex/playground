@@ -84,6 +84,8 @@ void f() {
 	vec4f v;
 	native_code("blaaa");
 	v = m * v.xx * (getm() * v);
+	int x = -5*3;
+	return m*v*getm();
 }
 
 )";

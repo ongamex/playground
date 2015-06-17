@@ -373,6 +373,24 @@ void StmtFor::Internal_Declare(Ast* ast)
 //------------------------------------------------------------------------------
 //
 //------------------------------------------------------------------------------
+std::string StmtReturn::Internal_GenerateCode(Ast* ast)
+{
+	if(expr != nullptr)
+	{
+		return std::string("return ") + expr->GenerateCode(ast) + ";";
+	}
+
+	return expr->GenerateCode(ast) + ";";
+}
+
+void StmtReturn::Internal_Declare(Ast* ast)
+{
+	if(expr) expr->Declare(ast);
+}
+
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
 std::string StmtList::Internal_GenerateCode(Ast* ast)
 {
 	std::string retval;
@@ -493,6 +511,7 @@ std::string GenerateCode(const LangSettings& lang, const char* code)
 	try 
 	{
 		Ast ast;
+		ast.lang = lang;
 		LangParseExpression(code, &ast);
 
 

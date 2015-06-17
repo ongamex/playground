@@ -212,7 +212,7 @@ public :
 		std::string retval = Internal_GenerateCode(ast);
 
 		if(inParens) retval = '(' + retval +')';
-		if(exprSign != '+') retval = exprSign + retval;
+		if(exprSign < 0) retval = '-' + retval;
 		if(hasSemicolon) retval += ";";
 		if(inBlock) retval = "{" + retval + "}";
 
@@ -225,13 +225,13 @@ public :
 
 private :
 
-	virtual std::string Internal_GenerateCode(Ast* ast) { return NULL; }
-	virtual void Internal_Declare(Ast* ast) {}
+	virtual std::string Internal_GenerateCode(Ast* ast) { return std::string(); }
+	virtual void Internal_Declare(Ast* ast) { }
 	virtual TypeDesc Internal_DeduceType(Ast* ast) { return TypeDesc(); }
 
 public :
 
-	char exprSign = '+'; // The sign of the expression. Used for -expr for example.
+	int exprSign = 1; // The sign of the expression. Used for -expr for example.
 	bool inParens = false; // True if the expression is surrounded with parens.
 	bool inBlock = false; // True if the statement is surrounded by { }
 	bool hasSemicolon = false; // True if the statement is of kind <--->; 
@@ -466,10 +466,21 @@ struct StmtFor : public Node
 	std::string Internal_GenerateCode(Ast* ast) override;
 	void Internal_Declare(Ast* ast) override;
 
-	Node* vardecl;
-	Node* boolExpr;
-	Node* postExpr;
-	Node* stmt;
+	Node* vardecl = nullptr;
+	Node* boolExpr = nullptr;
+	Node* postExpr = nullptr;
+	Node* stmt = nullptr;
+};
+
+struct StmtReturn : public Node
+{
+	StmtReturn() = default;
+	StmtReturn(Node* expr) : expr(expr) {}
+
+	std::string Internal_GenerateCode(Ast* ast) override;
+	void Internal_Declare(Ast* ast) override;
+
+	Node* expr = nullptr;
 };
 
 struct StmtList : public Node

@@ -23,7 +23,7 @@ bool parseExpression(const std::string& inp);
 // Token declaration.
 %token <no_type>		AND OR LE GE EQUALS NOTEQUALS
 %token <no_type>		IF ELSE WHILE FOR IN OUT INOUT
-%token <str_val>		IDENT CODE_STRING
+%token <str_val>		IDENT CODE_STRING RETURN
 %token <float_val>		NUM_FLOAT
 %token <int_val>		NUM_INT
 %token <no_type>		ATTRIBUTE VARYING UNIFORM NATIVE_CODE
@@ -162,6 +162,8 @@ stmt :
 	|	IF '(' expr ')' stmt ELSE stmt				{ $$ = ast->push<StmtIf>($3, $5, $7); } //[SHIFT-REDUCE]
 	|	'{' stmt_list '}' 							{ $2->inBlock = true; $$ = $2; }
 	|	NATIVE_CODE '('  CODE_STRING  ')' ';'		{ $$ = ast->push<StmtNativeCode>($3); }
+	|	RETURN expr ';'								{ $$ = ast->push<StmtReturn>($2); }
+	|	RETURN ';'									{ $$ = ast->push<StmtReturn>(); }
 	;
 
 		//[TODO] This should become something like expr = expr at least because of array indexing.
@@ -203,6 +205,7 @@ expr_base :
 	|	NUM_FLOAT					        { $$ = ast->push<ExprLiteral>($1); }
 	|	NUM_INT						        { $$ = ast->push<ExprLiteral>($1); }
 	|	expr_fncall					        { $$ = $1; }	
+	|	'-' expr_base						{ $2->exprSign *= -1; $$ = $2; }
 	;
 
 	

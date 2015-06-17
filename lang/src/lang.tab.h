@@ -60,12 +60,13 @@ extern int yydebug;
     INOUT = 270,
     IDENT = 271,
     CODE_STRING = 272,
-    NUM_FLOAT = 273,
-    NUM_INT = 274,
-    ATTRIBUTE = 275,
-    VARYING = 276,
-    UNIFORM = 277,
-    NATIVE_CODE = 278
+    RETURN = 273,
+    NUM_FLOAT = 274,
+    NUM_INT = 275,
+    ATTRIBUTE = 276,
+    VARYING = 277,
+    UNIFORM = 278,
+    NATIVE_CODE = 279
   };
 #endif
 

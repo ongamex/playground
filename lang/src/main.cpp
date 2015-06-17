@@ -75,7 +75,8 @@ int main()
 char* code = R"(
 
 uniform Texture2D diffuseTex;
-uniform mat4f world;
+varying mat4f world;
+
 
 mat4f getm() { x = 10; }
 
@@ -84,7 +85,7 @@ void f() {
 	vec4f v;
 	int x;
 if(x>0)
-	v = -(m * -v.xx * +(getm() * v));
+	v = -(world * -v.xx * +(getm() * v));
 else if(x<0) x = 10;
 
 }

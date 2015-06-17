@@ -4,13 +4,9 @@
 
 #include "ast.h"
 
-void Node::Declare(Ast* ast)
-{
-	if(inBlock) ast->declPushScope();
-	Internal_Declare(ast);
-	if(inBlock) ast->declPopScope();
-}
-
+//-----------------------------------------------------------------------
+// Ast
+//-----------------------------------------------------------------------
 std::string Ast::GenerateGlobalUniforms(const LangSettings& lang)
 {
 	std::string result;
@@ -31,7 +27,7 @@ std::string Ast::GenerateGlobalUniforms(const LangSettings& lang)
 	return result;
 }
 
-Ast::FullVariableDesc Ast::declareVariable(const TypeDesc& td, const std::string& name)
+Ast::FullVariableDesc Ast::declareVariable(const TypeDesc& td, const std::string& name, FullVariableDesc::Trait trait)
 {
 	FullVariableDesc fvd;
 
@@ -39,6 +35,7 @@ Ast::FullVariableDesc Ast::declareVariable(const TypeDesc& td, const std::string
 
 	fvd.fullName += name;
 	fvd.type = td;
+	fvd.trait = trait;
 
 	std::find_if(begin(declaredVariables), end(declaredVariables), [&fvd, &name](FullVariableDesc v) {
 		const bool equal = fvd.fullName == v.fullName;
@@ -60,7 +57,7 @@ const Ast::FullVariableDesc& Ast::findVarInCurrentScope(const std::string& name)
 	int depth = scope.size();
 	std::string fullName;
 
-	while(depth > 0)
+	while(depth >= 0)
 	{
 		fullName.clear();
 		for(int t = 0; t < depth; ++t) fullName+= scope[t] + "::";
@@ -93,24 +90,42 @@ void Ast::declareFunction(const TypeDesc& returnType, const std::string& name)
 }
 
 //-----------------------------------------------------------------------
+// Node
+//-----------------------------------------------------------------------
+void Node::Declare(Ast* ast)
+{
+	if(inBlock) ast->declPushScope();
+	Internal_Declare(ast);
+	if(inBlock) ast->declPopScope();
+}
+
+
+//-----------------------------------------------------------------------
 //
 //-----------------------------------------------------------------------
 std::string Ident::Internal_GenerateCode(Ast* ast)
 {
-	return identifier;
+	if(resolvedFvd.trait == Ast::FullVariableDesc::Trait_Varying)
+	{
+		// [TODO] Add the actual structure.
+		return "<varying>." + identifier;
+	}
+	else
+	{
+		return identifier;
+	}
 }
 
 void Ident::Internal_Declare(Ast* ast)
 {
 	// Deduce the type during the declaration. This is esier becase we already know the current scope.
 	// The correct solution would be to cache the current scope and deduce the type into the "type deduction" pass.
-	auto var = ast->findVarInCurrentScope(identifier);
-	resolvedType = var.type;
+	resolvedFvd = ast->findVarInCurrentScope(identifier);
 }
 
 TypeDesc Ident::Internal_DeduceType(Ast* ast)
 {
-	return resolvedType;
+	return resolvedFvd.type;
 }
 
 //-----------------------------------------------------------------------
@@ -472,6 +487,7 @@ void FuncDecl::Internal_Declare(Ast* ast)
 
 	ast->declareFunction(retType, name);
 
+	// Declare the local variables
 	for(auto& var : args) var->Declare(ast);
 	stmt->Declare(ast);
 
@@ -514,12 +530,23 @@ std::string GenerateCode(const LangSettings& lang, const char* code)
 		ast.lang = lang;
 		LangParseExpression(code, &ast);
 
-
 		if(!ast.program)
 		{
 			throw ParseExcept("Failed while compiling program!");
 		}
 
+		// [TODO] Reconcider to declare these values as local variable in main.
+		for(const auto& var : ast.varyings) {
+			ast.declareVariable(var.type, var.varName, Ast::FullVariableDesc::Trait_Varying);
+		}
+		
+
+		// Declare the global unifroms
+		for(const auto& unif : ast.uniforms) {
+			ast.declareVariable(unif.type, unif.varName);
+		}
+
+		// Declare everything else.
 		ast.program->Declare(&ast);
 		
 		for(auto n : ast.deductionQueue) n->DeduceType(&ast);

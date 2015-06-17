@@ -281,8 +281,17 @@ struct Ast
 	}
 
 	struct FullVariableDesc {
+
+		enum Trait
+		{
+			Trait_Regular, // Just a regual variable.
+			Trait_Varying, // A varying variable.
+		};
+
+
 		std::string fullName;
 		TypeDesc type;
+		Trait trait;
 	};
 
 	struct FullFuncionDesc {
@@ -293,7 +302,7 @@ struct Ast
 	std::string GenerateGlobalUniforms(const LangSettings& lang);
 
 	// Declares a variable at the current scope.
-	FullVariableDesc declareVariable(const TypeDesc& td, const std::string& name);
+	FullVariableDesc declareVariable(const TypeDesc& td, const std::string& name,  FullVariableDesc::Trait trait = FullVariableDesc::Trait_Regular);
 	void declareFunction(const TypeDesc& returnType, const std::string& name);
 	
 	const FullVariableDesc& findVarInCurrentScope(const std::string& name);
@@ -330,7 +339,7 @@ struct Ident : public Node
 	TypeDesc Internal_DeduceType(Ast* ast) override;
 
 	std::string identifier;
-	TypeDesc resolvedType;
+	Ast::FullVariableDesc resolvedFvd;
 };
 
 struct ExprMemberAccess : public Node

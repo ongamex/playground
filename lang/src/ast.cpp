@@ -4,10 +4,10 @@
 
 #include "ast.h"
 
-void Node::NodeDeclare(Ast* ast)
+void Node::Declare(Ast* ast)
 {
 	if(inBlock) ast->declPushScope();
-	data.NodeDelcare(ast);
+	Internal_Declare(ast);
 	if(inBlock) ast->declPopScope();
 }
 
@@ -42,7 +42,11 @@ Ast::FullVariableDesc Ast::declareVariable(const TypeDesc& td, const std::string
 
 	std::find_if(begin(declaredVariables), end(declaredVariables), [&fvd, &name](FullVariableDesc v) {
 		const bool equal = fvd.fullName == v.fullName;
-		if(equal) throw ParseExcept("Variable with name '" + name + "' is already defined!");
+
+		if(equal) {
+			throw ParseExcept("Variable with name '" + name + "' is already defined!");
+		}
+
 		return equal;
 	});
 
@@ -91,101 +95,99 @@ void Ast::declareFunction(const TypeDesc& returnType, const std::string& name)
 //-----------------------------------------------------------------------
 //
 //-----------------------------------------------------------------------
-template<>
-std::string NodeGenerateCode<Ident>(const LangSettings& lang, Ident& data)
+std::string Ident::Internal_GenerateCode(Ast* ast)
 {
-	return data.identifier;
+	return identifier;
 }
 
-template<> void NodeDeclare<Ident>(Ast* ast, Ident& data)
+void Ident::Internal_Declare(Ast* ast)
 {
-	auto var = ast->findVarInCurrentScope(data.identifier);
-	data.resolvedType = var.type;
+	// Deduce the type during the declaration. This is esier becase we already know the current scope.
+	// The correct solution would be to cache the current scope and deduce the type into the "type deduction" pass.
+	auto var = ast->findVarInCurrentScope(identifier);
+	resolvedType = var.type;
 }
 
-template<> TypeDesc NodeDeduceType<Ident>(Ident& data)
+TypeDesc Ident::Internal_DeduceType(Ast* ast)
 {
-	return data.resolvedType;
-}
-
-//-----------------------------------------------------------------------
-//
-//-----------------------------------------------------------------------
-template<> std::string NodeGenerateCode<ExprMemberAccess>(const LangSettings& lang, ExprMemberAccess& data)
-{
-	return data.expr->NodeGenerateCode(lang) + "." + data.member;
-}
-
-template<> void NodeDeclare<ExprMemberAccess>(Ast* ast, ExprMemberAccess& data)
-{
-	data.expr->NodeDeclare(ast);
-}
-
-template<> TypeDesc NodeDeduceType<ExprMemberAccess>(ExprMemberAccess& data)
-{
-	if(data.resolvedType == TypeDesc())
-	data.resolvedType = TypeDesc::GetMemberType(data.expr->NodeDeduceType(), data.member);
-	return data.resolvedType;
-
+	return resolvedType;
 }
 
 //-----------------------------------------------------------------------
 //
 //-----------------------------------------------------------------------
-template<>
-std::string NodeGenerateCode<ExprBin>(const LangSettings& lang, ExprBin& data)
+std::string ExprMemberAccess::Internal_GenerateCode(Ast* ast)
 {
-	Node* left = data.left;
-	Node* right = data.right;
+	return expr->GenerateCode(ast) + "." + member;
+}
 
-	switch(data.type) {
-		case EBT_Add : return left->NodeGenerateCode(lang) + (" + ") + right->NodeGenerateCode(lang);
-		case EBT_Sub : return left->NodeGenerateCode(lang) + (" - ") + right->NodeGenerateCode(lang);
+void ExprMemberAccess::Internal_Declare(Ast* ast)
+{
+	expr->Declare(ast);
+}
+
+TypeDesc ExprMemberAccess::Internal_DeduceType(Ast* ast)
+{
+	if(resolvedType == TypeDesc())
+	resolvedType = TypeDesc::GetMemberType(expr->DeduceType(ast), member);
+	return resolvedType;
+
+}
+
+//-----------------------------------------------------------------------
+//
+//-----------------------------------------------------------------------
+std::string ExprBin::Internal_GenerateCode(Ast* ast)
+{
+	switch(type) {
+		case EBT_Add : return left->GenerateCode(ast) + (" + ") + right->GenerateCode(ast);
+		case EBT_Sub : return left->GenerateCode(ast) + (" - ") + right->GenerateCode(ast);
 		case EBT_Mul :
 		{
-			const bool isMatrixExpr = left->NodeDeduceType().GetBuiltInType() == TypeDesc::Type_mat4f || right->NodeDeduceType().GetBuiltInType() == TypeDesc::Type_mat4f;
+			const bool isMatrixExpr = left->DeduceType(ast).GetBuiltInType() == TypeDesc::Type_mat4f 
+				|| right->DeduceType(ast).GetBuiltInType() == TypeDesc::Type_mat4f;
 
-			if(lang.outputLanguage == OL_HLSL && isMatrixExpr)
+			if(ast->lang.outputLanguage == OL_HLSL && isMatrixExpr)
 			{
-				return "mul(" + left->NodeGenerateCode(lang) + "," + right->NodeGenerateCode(lang) + ")";
+				return "mul(" + left->GenerateCode(ast) + "," + right->GenerateCode(ast) + ")";
 			}
 			else 
 			{
-				return left->NodeGenerateCode(lang) + (" * ") + right->NodeGenerateCode(lang);
+				return left->GenerateCode(ast) + (" * ") + right->GenerateCode(ast);
 			}
 		}
-		case EBT_Div :      return left->NodeGenerateCode(lang) + (" / ") + right->NodeGenerateCode(lang);
-		case EBT_Greater :  return left->NodeGenerateCode(lang) + (" > ") + right->NodeGenerateCode(lang);
-		case EBT_GEquals :  return left->NodeGenerateCode(lang) + (" >= ") + right->NodeGenerateCode(lang);
-		case EBT_Less :     return left->NodeGenerateCode(lang) + (" < ") + right->NodeGenerateCode(lang);
-		case EBT_LEquals :  return left->NodeGenerateCode(lang) + (" <= ") + right->NodeGenerateCode(lang);
-		case EBT_Equals :   return left->NodeGenerateCode(lang) + (" == ") + right->NodeGenerateCode(lang);
-		case EBT_NEquals :  return left->NodeGenerateCode(lang) + (" != ") + right->NodeGenerateCode(lang);
-		case EBT_Or :       return left->NodeGenerateCode(lang) + (" || ") + right->NodeGenerateCode(lang);
-		case EBT_And :      return left->NodeGenerateCode(lang) + (" && ") + right->NodeGenerateCode(lang);
-		default :           return left->NodeGenerateCode(lang) + (" ??? ") + right->NodeGenerateCode(lang);
+		case EBT_Div :      return left->GenerateCode(ast) + (" / ") + right->GenerateCode(ast);
+		case EBT_Greater :  return left->GenerateCode(ast) + (" > ") + right->GenerateCode(ast);
+		case EBT_GEquals :  return left->GenerateCode(ast) + (" >= ") + right->GenerateCode(ast);
+		case EBT_Less :     return left->GenerateCode(ast) + (" < ") + right->GenerateCode(ast);
+		case EBT_LEquals :  return left->GenerateCode(ast) + (" <= ") + right->GenerateCode(ast);
+		case EBT_Equals :   return left->GenerateCode(ast) + (" == ") + right->GenerateCode(ast);
+		case EBT_NEquals :  return left->GenerateCode(ast) + (" != ") + right->GenerateCode(ast);
+		case EBT_Or :       return left->GenerateCode(ast) + (" || ") + right->GenerateCode(ast);
+		case EBT_And :      return left->GenerateCode(ast) + (" && ") + right->GenerateCode(ast);
+		default :           return left->GenerateCode(ast) + (" ??? ") + right->GenerateCode(ast);
 	}
 
 	return "expr ??? expr";
 }
 
-template<> void NodeDeclare<ExprBin>(Ast* ast, ExprBin& data)
+void ExprBin::Internal_Declare(Ast* ast)
 {
-	data.left->NodeDeclare(ast);
-	data.right->NodeDeclare(ast);
+	left->Declare(ast);
+	right->Declare(ast);
 }
 
-template<> TypeDesc NodeDeduceType<ExprBin>(ExprBin& data)
+TypeDesc ExprBin::Internal_DeduceType(Ast* ast)
 {
-	if(data.resolvedType != TypeDesc()) return data.resolvedType;
+	if(resolvedType != TypeDesc()) return resolvedType;
 
-	switch(data.type)
+	switch(type)
 	{
 		case EBT_Add : 
 		case EBT_Sub :
 		case EBT_Mul : 
 		case EBT_Div : 
-			if(data.resolvedType == TypeDesc()) data.resolvedType = TypeDesc::ResolveType(data.left->NodeDeduceType(), data.right->NodeDeduceType());
+			if(resolvedType == TypeDesc()) resolvedType = TypeDesc::ResolveType(left->DeduceType(ast), right->DeduceType(ast));
 			break;
 		case EBT_Greater :
 		case EBT_GEquals : 
@@ -195,25 +197,25 @@ template<> TypeDesc NodeDeduceType<ExprBin>(ExprBin& data)
 		case EBT_NEquals :
 		case EBT_Or :
 		case EBT_And :
-			data.resolvedType = TypeDesc(TypeDesc::Type_bool);
+			resolvedType = TypeDesc(TypeDesc::Type_bool);
 			break;
 		default :
 			throw ParseExcept("Unknown type");
 	}
 
-	return data.resolvedType;
+	return resolvedType;
 }
 
 //------------------------------------------------------------------------------
 //
 //------------------------------------------------------------------------------
-template<> std::string NodeGenerateCode<FuncCall>(const LangSettings& lang, FuncCall& data)
+std::string FuncCall::Internal_GenerateCode(Ast* ast)
 {
-	std::string retval = data.fnName + '(';
+	std::string retval = fnName + '(';
 	
-	for(int t = 0; t < data.args.size(); ++t) {
-		retval += data.args[t]->NodeGenerateCode(lang);
-		if(t < data.args.size() - 1) retval += ",";
+	for(int t = 0; t < args.size(); ++t) {
+		retval += args[t]->GenerateCode(ast);
+		if(t < args.size() - 1) retval += ",";
 	}
 
 	retval += ')';
@@ -221,27 +223,26 @@ template<> std::string NodeGenerateCode<FuncCall>(const LangSettings& lang, Func
 	return retval;
 }
 
-template<> void NodeDeclare<FuncCall>(Ast* ast, FuncCall& data)
+void FuncCall::Internal_Declare(Ast* ast)
 {
-	data.resolvedType = ast->findFuncDecl(data.fnName).retType;
-	for(auto& arg : data.args) arg->NodeDeclare(ast);
+	resolvedType = ast->findFuncDecl(fnName).retType;
+	for(auto& arg : args) arg->Declare(ast);
 }
 
-template<> TypeDesc NodeDeduceType(FuncCall& data)
+TypeDesc FuncCall::Internal_DeduceType(Ast* ast)
 {
-	return data.resolvedType;
+	return resolvedType;
 }
 
 //------------------------------------------------------------------------------
 //
 //------------------------------------------------------------------------------
-template<>
-std::string NodeGenerateCode<ExprLiteral>(const LangSettings& lang, ExprLiteral& data)
+std::string ExprLiteral::Internal_GenerateCode(Ast* ast)
 {
 	char buff[64] = {0};
-	if(data.type.GetBuiltInType() == TypeDesc::Type_float)
+	if(type.GetBuiltInType() == TypeDesc::Type_float)
 	{
-		sprintf(buff, "%f", data.float_val);
+		sprintf(buff, "%f", float_val);
 
 		// kill the trailing zeroes.
 		for(int t = strlen(buff);t > 1; --t){
@@ -253,67 +254,65 @@ std::string NodeGenerateCode<ExprLiteral>(const LangSettings& lang, ExprLiteral&
 
 		return buff;
 	}
-	else if(data.type.GetBuiltInType() == TypeDesc::Type_int)
+	else if(type.GetBuiltInType() == TypeDesc::Type_int)
 	{
-		sprintf(buff, "%d", data.int_val);
+		sprintf(buff, "%d", int_val);
 		return buff;
 	}
 
 	return "???";
 }
 
-template<> TypeDesc NodeDeduceType(ExprLiteral& data) {
-	return data.type;
+TypeDesc ExprLiteral::Internal_DeduceType(Ast* ast) 
+{
+	return type;
 }
 
 //------------------------------------------------------------------------------
 //
 //------------------------------------------------------------------------------
-template<>
-std::string NodeGenerateCode<Assign>(const LangSettings& lang, Assign& data)
+std::string Assign::Internal_GenerateCode(Ast* ast)
 {
-	return data.ident + " = " + data.expr->NodeGenerateCode(lang);
+	return ident + " = " + expr->GenerateCode(ast);
 }
 
-template<> void NodeDeclare<Assign>(Ast* ast, Assign& data)
+void Assign::Internal_Declare(Ast* ast)
 {
-	data.expr->NodeDeclare(ast);
-}
-
-//------------------------------------------------------------------------------
-//
-//------------------------------------------------------------------------------
-template<>
-std::string NodeGenerateCode<StmtNativeCode>(const LangSettings& lang, StmtNativeCode& data)
-{
-	return data.code;
+	expr->Declare(ast);
 }
 
 //------------------------------------------------------------------------------
 //
 //------------------------------------------------------------------------------
-template<>
-std::string NodeGenerateCode<StmtIf>(const LangSettings& lang, StmtIf& data)
+std::string StmtNativeCode::Internal_GenerateCode(Ast* ast)
 {
-	std::string retval = "if(" + data.expr->NodeGenerateCode(lang) + ")";
-	if(data.trueStmt) retval += data.trueStmt->NodeGenerateCode(lang); else retval += ';';
-	if(data.falseStmt) retval += "else " + data.falseStmt->NodeGenerateCode(lang);
+	return code;
+}
+
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
+std::string StmtIf::Internal_GenerateCode(Ast* ast)
+{
+	std::string retval = "if(" + expr->GenerateCode(ast) + ")";
+	if(trueStmt) retval += trueStmt->GenerateCode(ast); else retval += ';';
+	if(falseStmt) retval += "else " + falseStmt->GenerateCode(ast);
 	return retval;
 }
 
-template<> void NodeDeclare<StmtIf>(Ast* ast, StmtIf& data)
+void StmtIf::Internal_Declare(Ast* ast)
 {
-	if(data.trueStmt)
+	if(trueStmt)
 	{
 		ast->declPushScope();
-		data.trueStmt->NodeDeclare(ast);
+		trueStmt->Declare(ast);
 		ast->declPopScope();
 	}
 
-	if(data.falseStmt)
+	if(falseStmt)
 	{
 		ast->declPushScope();
-		data.falseStmt->NodeDeclare(ast);
+		falseStmt->Declare(ast);
 		ast->declPopScope();
 	}
 }
@@ -321,21 +320,20 @@ template<> void NodeDeclare<StmtIf>(Ast* ast, StmtIf& data)
 //------------------------------------------------------------------------------
 //
 //------------------------------------------------------------------------------
-template<>
-std::string NodeGenerateCode<StmtWhile>(const LangSettings& lang, StmtWhile& data)
+std::string StmtWhile::Internal_GenerateCode(Ast* ast)
 {
-	std::string retval = "while(" + data.expr->NodeGenerateCode(lang) + ")";
-	if(data.bodyStmt) retval += data.bodyStmt->NodeGenerateCode(lang); 
+	std::string retval = "while(" + expr->GenerateCode(ast) + ")";
+	if(bodyStmt) retval += bodyStmt->GenerateCode(ast); 
 	else retval += ';';
 	return retval;
 }
 
-template<> void NodeDeclare<StmtWhile>(Ast* ast, StmtWhile& data)
+void StmtWhile::Internal_Declare(Ast* ast)
 {
-	if(data.bodyStmt)
+	if(bodyStmt)
 	{
 		ast->declPushScope();
-		data.bodyStmt->NodeDeclare(ast);
+		bodyStmt->Declare(ast);
 		ast->declPopScope();
 	}
 }
@@ -343,32 +341,31 @@ template<> void NodeDeclare<StmtWhile>(Ast* ast, StmtWhile& data)
 //------------------------------------------------------------------------------
 //
 //------------------------------------------------------------------------------
-template<>
-std::string NodeGenerateCode<StmtFor>(const LangSettings& lang, StmtFor& data)
+std::string StmtFor::Internal_GenerateCode(Ast* ast)
 {
 	std::string retval = "for(";
-	if(data.vardecl) retval +=  data.vardecl->NodeGenerateCode(lang); retval += ';';
-	if(data.boolExpr) retval += data.boolExpr->NodeGenerateCode(lang); retval += ';';
-	if(data.postExpr) retval += data.postExpr->NodeGenerateCode(lang); 
+	if(vardecl) retval +=  vardecl->GenerateCode(ast); retval += ';';
+	if(boolExpr) retval += boolExpr->GenerateCode(ast); retval += ';';
+	if(postExpr) retval += postExpr->GenerateCode(ast); 
 	retval += ')';
-	retval += data.stmt->NodeGenerateCode(lang);
+	retval += stmt->GenerateCode(ast);
 
 	return retval;
 }
 
-template<> void NodeDeclare<StmtFor>(Ast* ast, StmtFor& data)
+void StmtFor::Internal_Declare(Ast* ast)
 {
-	if(data.vardecl)
+	if(vardecl)
 	{
 		ast->declPushScope();
-		data.vardecl->NodeDeclare(ast);
+		vardecl->Declare(ast);
 		ast->declPopScope();
 	}
 
-	if(data.stmt) 
+	if(stmt) 
 	{
 		ast->declPushScope();
-		data.stmt->NodeDeclare(ast);
+		stmt->Declare(ast);
 		ast->declPopScope();
 	}
 }
@@ -376,97 +373,89 @@ template<> void NodeDeclare<StmtFor>(Ast* ast, StmtFor& data)
 //------------------------------------------------------------------------------
 //
 //------------------------------------------------------------------------------
-template<>
-std::string NodeGenerateCode<StmtList>(const LangSettings& lang, StmtList& data)
+std::string StmtList::Internal_GenerateCode(Ast* ast)
 {
 	std::string retval;
-	for(auto& node : data.nodes) retval += node->NodeGenerateCode(lang);
+	for(auto& node : nodes) retval += node->GenerateCode(ast);
 	return retval;
 }
 
-template<> void NodeDeclare<StmtList>(Ast* ast, StmtList& data)
+void StmtList::Internal_Declare(Ast* ast)
 {
-	for(auto& node : data.nodes) node->NodeDeclare(ast);
-}
-
-//------------------------------------------------------------------------------
-//
-//------------------------------------------------------------------------------
-template<>
-std::string NodeGenerateCode<VarDecl>(const LangSettings& lang, VarDecl& data)
-{
-	std::string retval = data.type.GetTypeAsString(lang) + " ";
-
-	for(int t = 0; t < data.ident.size(); ++t)
-	{
-		retval += data.ident[t];
-		if(data.expr[t]) {
-			retval += "=" + data.expr[t]->NodeGenerateCode(lang);
-		}
-
-		if(t < data.ident.size() - 1) retval += ',';
-	}
-
-	return retval;
-}
-
-template<> void NodeDeclare<VarDecl>(Ast* ast, VarDecl& data)
-{
-	for(int t = 0; t < data.ident.size(); ++t)
-	{
-		ast->declareVariable(data.type, data.ident[t]);
+	for(auto& node : nodes) {
+		node->Declare(ast);
 	}
 }
 
 //------------------------------------------------------------------------------
 //
 //------------------------------------------------------------------------------
-template<>
-std::string NodeGenerateCode<FnDeclArgVarDecl>(const LangSettings& lang, FnDeclArgVarDecl& data)
+std::string VarDecl::Internal_GenerateCode(Ast* ast)
+{
+	std::string retval = type.GetTypeAsString(ast->lang) + " ";
+
+	for(int t = 0; t < ident.size(); ++t)
+	{
+		retval += ident[t];
+		if(expr[t]) retval += "=" + expr[t]->GenerateCode(ast);
+		if(t < ident.size() - 1) retval += ',';
+	}
+
+	return retval;
+}
+
+void VarDecl::Internal_Declare(Ast* ast)
+{
+	for(int t = 0; t < ident.size(); ++t)
+	{
+		ast->declareVariable(type, ident[t]);
+	}
+}
+
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
+std::string FnDeclArgVarDecl::Internal_GenerateCode(Ast* ast)
 {
 	std::string retval;
-	if(data.argType == FNAT_InOut) retval += "inout ";
-	if(data.argType == FNAT_Out) retval += "out ";
+	if(argType == FNAT_InOut) retval += "inout ";
+	if(argType == FNAT_Out) retval += "out ";
 
-	retval += data.type.GetTypeAsString(lang) + " " + data.ident;
-	if(data.expr) retval += "=" + data.expr->NodeGenerateCode(lang);
+	retval += type.GetTypeAsString(ast->lang) + " " + ident;
+	if(expr) retval += "=" + expr->GenerateCode(ast);
 	return retval;
 }
 
-template<>
-void NodeDeclare(Ast* ast, FnDeclArgVarDecl& data) {
-	ast->declareVariable(data.type, data.ident);
+void FnDeclArgVarDecl::Internal_Declare(Ast* ast)
+{
+	ast->declareVariable(type, ident);
 }
 
 //------------------------------------------------------------------------------
 //
 //------------------------------------------------------------------------------
-template<>
-std::string NodeGenerateCode<FuncDecl>(const LangSettings& lang, FuncDecl& data)
+std::string FuncDecl::Internal_GenerateCode(Ast* ast)
 {
-	std::string retval = data.retType.GetTypeAsString(lang) + " " + data.name + "(";
+	std::string retval = retType.GetTypeAsString(ast->lang) + " " + name + "(";
 
-	for(int t = 0; t < data.args.size(); ++t) {
-		
-		retval += data.args[t]->NodeGenerateCode(lang);
-
-		if(t < data.args.size() - 1) retval += ',';
+	for(int t = 0; t < args.size(); ++t) {
+		retval += args[t]->GenerateCode(ast);
+		if(t < args.size() - 1) retval += ',';
 	}
 
-	retval += "){ " + data.stmt->NodeGenerateCode(lang) + "}";
+	retval += "){ " + stmt->GenerateCode(ast) + "}";
 
 	return retval;
 }
 
-template<>
-void NodeDeclare<FuncDecl>(Ast* ast, FuncDecl& data)
+void FuncDecl::Internal_Declare(Ast* ast)
 {
-	ast->declPushScope(data.name);
+	ast->declPushScope(name);
 
-	ast->declareFunction(data.retType, data.name);
+	ast->declareFunction(retType, name);
 
-	for(auto& var : data.args) var->NodeDeclare(ast);
-	data.stmt->NodeDeclare(ast);
+	for(auto& var : args) var->Declare(ast);
+	stmt->Declare(ast);
 
 	ast->declPopScope();
 }
@@ -474,23 +463,21 @@ void NodeDeclare<FuncDecl>(Ast* ast, FuncDecl& data)
 //------------------------------------------------------------------------------
 //
 //------------------------------------------------------------------------------
-template<>
-std::string NodeGenerateCode<ProgramElem>(const LangSettings& lang, ProgramElem& data)
+std::string ProgramElem::Internal_GenerateCode(Ast* ast)
 {
 	std::string retval;
 
-	for(const auto& node : data.nodes) {
-		retval += node->NodeGenerateCode(lang);
+	for(const auto& node : nodes) {
+		retval += node->GenerateCode(ast);
 	}
 
 	return retval;
 }
 
-template<>
-void NodeDeclare<ProgramElem>(Ast* ast, ProgramElem& data)
+void ProgramElem::Internal_Declare(Ast* ast)
 {
-	for(auto& node : data.nodes) {
-		node->NodeDeclare(ast);
+	for(auto& node : nodes) {
+		node->Declare(ast);
 	}
 }
 
@@ -514,12 +501,12 @@ std::string GenerateCode(const LangSettings& lang, const char* code)
 			throw ParseExcept("Failed while compiling program!");
 		}
 
-		ast.program->NodeDeclare(&ast);
+		ast.program->Declare(&ast);
 		
-		for(auto n : ast.deductionQueue) n->NodeDeduceType();
+		for(auto n : ast.deductionQueue) n->DeduceType(&ast);
 
 		std::string code;
-		code = ast.GenerateGlobalUniforms(lang) + ast.program->NodeGenerateCode(lang);
+		code = ast.GenerateGlobalUniforms(lang) + ast.program->GenerateCode(&ast);
 		return code;
 	}
 	catch(const std::exception& e) {

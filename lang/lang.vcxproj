@@ -21,7 +21,6 @@
     <ClInclude Include="src\lang.h" />
     <ClInclude Include="src\lang.tab.h" />
     <ClInclude Include="src\lang.yystype.h" />
-    <ClInclude Include="src\utils\variant.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="src\lang.l" />

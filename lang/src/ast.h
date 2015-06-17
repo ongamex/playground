@@ -154,24 +154,7 @@ private :
 	std::string m_strType;
 };
 
-
-template<class T>
-std::string NodeGenerateCode(const LangSettings& lang, T& data) {
-	return std::string();
-}
-
-template<class T> TypeDesc NodeDeduceType(T& data) {
-	return TypeDesc(TypeDesc::Type_NoType);
-}
-
-
-template<class T>
-void NodeDeclare(Ast* ast, T& data) {
-}
-
 std::string GenerateCode(const LangSettings& lang, const char* code);
-
-#include "utils/variant.h"
 
 enum ExprBinType
 { 
@@ -217,21 +200,16 @@ struct Uniforms
 
 struct Node
 {
+public : 
+
 	Node() {}
+	virtual ~Node() = default;
 
-	template<typename T>
-	Node(const T& t)
-	{
-		data.ConstructAs<T>();
-		data.As<T>() = t;
-	}
+	template<typename T> T& As() { return *(T*)this; }
 
-	template<typename T>
-	T& As() { return data.As<T>(); }
-
-	std::string NodeGenerateCode(const LangSettings& lang) {
+	std::string GenerateCode(Ast* ast) {
 		
-		std::string retval = data.NodeGenerateCode(lang);
+		std::string retval = Internal_GenerateCode(ast);
 
 		if(inParens) retval = '(' + retval +')';
 		if(exprSign != '+') retval = exprSign + retval;
@@ -240,19 +218,23 @@ struct Node
 
 		return retval;
 	}
+	
+	void Declare(Ast* ast);
 
-	void NodeDeclare(Ast* ast);
+	TypeDesc DeduceType(Ast* ast) { return Internal_DeduceType(ast); }
 
-	TypeDesc NodeDeduceType() { return data.NodeDeduceType(); }
+private :
 
-	Variant<100> data;
+	virtual std::string Internal_GenerateCode(Ast* ast) { return NULL; }
+	virtual void Internal_Declare(Ast* ast) {}
+	virtual TypeDesc Internal_DeduceType(Ast* ast) { return TypeDesc(); }
+
+public :
 
 	char exprSign = '+'; // The sign of the expression. Used for -expr for example.
 	bool inParens = false; // True if the expression is surrounded with parens.
 	bool inBlock = false; // True if the statement is surrounded by { }
 	bool hasSemicolon = false; // True if the statement is of kind <--->; 
-
-	TypeDesc expressionType;
 };
 
 struct Ast
@@ -263,14 +245,22 @@ struct Ast
 	}
 
 	template<typename T>
-	inline Node* push(const T t = T()) {
-		return add(new Node(t));
+	inline T* add() {
+		nodes.push_back(new T);
+		return (T*)nodes.back();
 	}
 	
+	template<typename T, typename... Args>
+	T* push(Args... args) {
+		T* node = new T(args...);
+		add(node);
+		return node;
+	}
+
 	void declPushScope() {
 		static int scopeIndex;
 		char srtScope[32];
-		sprintf(srtScope, "scope_%d", scopeIndex);
+		sprintf(srtScope, "@scp_%d", scopeIndex);
 		scopeIndex++;
 
 		declPushScope(srtScope);
@@ -321,28 +311,38 @@ struct Ast
 	std::vector<FullFuncionDesc> declaredFunctions;
 
 	std::vector<Node*> deductionQueue;
-};
 
+	LangSettings lang;
+};
 
 //-------------------------------------------------------------------------
 //
 //-------------------------------------------------------------------------
-struct Ident
+struct Ident : public Node
 {
+	Ident() = default;
+	Ident(const std::string& identifier) :
+		identifier(identifier)
+	{}
+
+	std::string Internal_GenerateCode(Ast* ast) override;
+	void Internal_Declare(Ast* ast) override;
+	TypeDesc Internal_DeduceType(Ast* ast) override;
+
 	std::string identifier;
 	TypeDesc resolvedType;
 };
 
-template<> std::string NodeGenerateCode<Ident>(const LangSettings& lang, Ident& data);
-template<> void NodeDeclare<Ident>(Ast* ast, Ident& data);
-template<> TypeDesc NodeDeduceType<Ident>(Ident& data);
-
-struct ExprMemberAccess
+struct ExprMemberAccess : public Node
 {
 	ExprMemberAccess() = default;
 	ExprMemberAccess(Node* expr, const std::string& member) :
 		expr(expr), member(member)
 	{}
+
+	std::string Internal_GenerateCode(Ast* ast) override;
+	void Internal_Declare(Ast* ast) override;
+	TypeDesc Internal_DeduceType(Ast* ast) override;
 
 	Node* expr;
 	std::string member;
@@ -350,50 +350,45 @@ struct ExprMemberAccess
 	TypeDesc resolvedType; 
 };
 
-template<> std::string NodeGenerateCode<ExprMemberAccess>(const LangSettings& lang, ExprMemberAccess& data);
-template<> void NodeDeclare<ExprMemberAccess>(Ast* ast, ExprMemberAccess& data);
-template<> TypeDesc NodeDeduceType<ExprMemberAccess>(ExprMemberAccess& data);
 
 //---------------------------------------------------------------------------------
 // Expressions
 //---------------------------------------------------------------------------------
 
 // Binary expression of kind: a ? b
-struct ExprBin
+struct ExprBin : public Node
 {
 	ExprBin() = default;
 	ExprBin(ExprBinType type, Node* left, Node* right) :
 		type(type), left(left), right(right)
 	{}
 
+	std::string Internal_GenerateCode(Ast* ast) override;
+	void Internal_Declare(Ast* ast) override;
+	TypeDesc Internal_DeduceType(Ast* ast) override;
+
 	ExprBinType type;
 	Node* left;
 	Node* right;
 
-
 	TypeDesc resolvedType;
 };
 
-template<> std::string NodeGenerateCode<ExprBin>(const LangSettings& lang, ExprBin& data);
-template<> void NodeDeclare<ExprBin>(Ast* ast, ExprBin& data);
-template<> TypeDesc NodeDeduceType<ExprBin>(ExprBin& data);
 
-// Function calls in expressions.
-
-struct FuncCall
+struct FuncCall : public Node
 {
 	std::string fnName;
 	std::vector<Node*> args;
 
+	std::string Internal_GenerateCode(Ast* ast) override;
+	void Internal_Declare(Ast* ast) override;
+	TypeDesc Internal_DeduceType(Ast* ast) override;
+
 	TypeDesc resolvedType;
 };
 
-template<> std::string NodeGenerateCode<FuncCall>(const LangSettings& lang, FuncCall& data);
-template<> void NodeDeclare<FuncCall>(Ast* ast, FuncCall& data);
-template<> TypeDesc NodeDeduceType<FuncCall>(FuncCall& data);
-
 // Literal value
-struct ExprLiteral
+struct ExprLiteral : public Node
 {
 	union
 	{
@@ -405,80 +400,87 @@ struct ExprLiteral
 	ExprLiteral(float f) : type("float"), float_val(f) {}
 	ExprLiteral(int i) : type("int"), int_val(i) {}
 
+	std::string Internal_GenerateCode(Ast* ast) override;
+	TypeDesc Internal_DeduceType(Ast* ast) override;
+
 	TypeDesc type;
 };
-
-template<> std::string NodeGenerateCode<ExprLiteral>(const LangSettings& lang, ExprLiteral& data);
-template<> TypeDesc NodeDeduceType<ExprLiteral>(ExprLiteral& data);
 
 //---------------------------------------------------------------------------------
 // Statements
 //---------------------------------------------------------------------------------
-struct Assign
+struct Assign : public Node
 {
+	Assign(const std::string& ident, Node* expr) :
+		ident(ident), expr(expr)
+	{}
+
 	std::string ident;
 	Node* expr;
+
+	std::string Internal_GenerateCode(Ast* ast) override;
+	void Internal_Declare(Ast* ast) override;
 };
 
-template<> std::string NodeGenerateCode<Assign>(const LangSettings& lang, Assign& data);
-template<> void NodeDeclare<Assign>(Ast* ast, Assign& data);
-
-struct StmtNativeCode
+struct StmtNativeCode : public Node
 {
 	StmtNativeCode() = default;
 	StmtNativeCode(const std::string& code) : code(code) {}
 
+	std::string Internal_GenerateCode(Ast* ast) override;
+
 	std::string code;
 };
 
-template<> std::string NodeGenerateCode<StmtNativeCode>(const LangSettings& lang, StmtNativeCode& data);
-
-struct StmtIf
+struct StmtIf : public Node
 {
 	StmtIf() = default;
 	StmtIf(Node* expr, Node* trueStmt, Node* falseStmt) : expr(expr), trueStmt(trueStmt), falseStmt(falseStmt) {}
+
+	std::string Internal_GenerateCode(Ast* ast) override;
+	void Internal_Declare(Ast* ast) override;
 
 	Node* expr = nullptr;
 	Node* trueStmt = nullptr;
 	Node* falseStmt = nullptr; // optional
 };
 
-template<> std::string NodeGenerateCode<StmtIf>(const LangSettings& lang, StmtIf& data);
-template<> void NodeDeclare<StmtIf>(Ast* ast, StmtIf& data);
-
-
-struct StmtWhile
+struct StmtWhile : public Node
 {
 	StmtWhile() = default;
 	StmtWhile(Node* expr, Node* bodyStmt) : expr(expr), bodyStmt(bodyStmt) {}
+
+	std::string Internal_GenerateCode(Ast* ast) override;
+	void Internal_Declare(Ast* ast) override;
 
 	Node* expr = nullptr;
 	Node* bodyStmt = nullptr;
 };
 
-template<> std::string NodeGenerateCode<StmtWhile>(const LangSettings& lang, StmtWhile& data);
-template<> void NodeDeclare<StmtWhile>(Ast* ast, StmtWhile& data);
-
-struct StmtFor
+struct StmtFor : public Node
 {
+	StmtFor(Node* vardecl, Node* boolExpr, Node* postExpr, Node* stmt) :
+		vardecl(vardecl), boolExpr(boolExpr), postExpr(postExpr), stmt(stmt)
+	{}
+
+	std::string Internal_GenerateCode(Ast* ast) override;
+	void Internal_Declare(Ast* ast) override;
+
 	Node* vardecl;
 	Node* boolExpr;
 	Node* postExpr;
 	Node* stmt;
 };
 
-template<> std::string NodeGenerateCode<StmtFor>(const LangSettings& lang, StmtFor& data);
-template<> void NodeDeclare<StmtFor>(Ast* ast, StmtFor& data);
-
-struct StmtList
+struct StmtList : public Node
 {
+	std::string Internal_GenerateCode(Ast* ast) override;
+	void Internal_Declare(Ast* ast) override;
+
 	std::vector<Node*> nodes;
 };
 
-template<> std::string NodeGenerateCode<StmtList>(const LangSettings& lang, StmtList& data);
-template<> void NodeDeclare<StmtList>(Ast* ast, StmtList& data);
-
-struct VarDecl
+struct VarDecl : public Node
 {
 	VarDecl() = default;
 
@@ -489,21 +491,24 @@ struct VarDecl
 		expr.push_back(firstExpr);
 	}
 
+	std::string Internal_GenerateCode(Ast* ast) override;
+	void Internal_Declare(Ast* ast) override;
+
 	TypeDesc type;//std::string type;
 	std::vector<std::string> ident;
 	std::vector<Node*> expr;
 };
 
-template<> std::string NodeGenerateCode<VarDecl>(const LangSettings& lang, VarDecl& data);
-template<> void NodeDeclare<VarDecl>(Ast* ast, VarDecl& data);
-
-struct FnDeclArgVarDecl
+struct FnDeclArgVarDecl : public Node
 {
 	FnDeclArgVarDecl() = default;
 
 	FnDeclArgVarDecl(TypeDesc type, const std::string& ident, Node* const expr, FnCallArgType argType) :
 		type(type), ident(ident), expr(expr), argType(argType)
 	{}
+
+	std::string Internal_GenerateCode(Ast* ast) override;
+	void Internal_Declare(Ast* ast) override;
 
 	TypeDesc type;//std::string type;
 	std::string ident; // The name of the variable.
@@ -512,25 +517,22 @@ struct FnDeclArgVarDecl
 
 };
 
-template<> std::string NodeGenerateCode<FnDeclArgVarDecl>(const LangSettings& lang, FnDeclArgVarDecl& data);
-template<> void NodeDeclare(Ast* ast, FnDeclArgVarDecl& data);
-
-struct FuncDecl
+struct FuncDecl : public Node
 {
 	std::vector<Node*> args;
 	TypeDesc retType;//std::string retType;
 	std::string name;
 
+	std::string Internal_GenerateCode(Ast* ast) override;
+	void Internal_Declare(Ast* ast) override;
+
 	Node* stmt; // the body of the function.
 };
 
-template<> std::string NodeGenerateCode<FuncDecl>(const LangSettings& lang, FuncDecl& data);
-template<> void NodeDeclare<FuncDecl>(Ast* ast, FuncDecl& data);
-
-struct ProgramElem
+struct ProgramElem : public Node
 {
+	std::string Internal_GenerateCode(Ast* ast) override;
+	void Internal_Declare(Ast* ast) override;
+
 	std::vector<Node*> nodes;
 };
-
-template<> std::string NodeGenerateCode<ProgramElem>(const LangSettings& lang, ProgramElem& data);
-template<> void NodeDeclare<ProgramElem>(Ast* ast, ProgramElem& data);

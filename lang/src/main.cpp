@@ -45,6 +45,33 @@ int main()
 {
 	Ast ast;
 
+// OLD CODE:
+//
+//	int foo() {5;}
+//void f(inout int x, out int y, in void z) {
+//	if(x + 5 == 10) {
+//		x = (10+3)*5;
+//	}
+//
+//	while(5 < x) {
+//		x=10;
+//		if (x >= 10) x = 5;
+//	}
+//	
+//	y = 3;
+//	x = foo(x+3,1,3*4*foo()) * 3+4;
+//	foo(5);
+//}
+//
+//void fo() {
+//	float a,b,c=1,d;
+//	int x = 1.0;
+//	for(int t = 0; t < 10; 1+t) {
+//		foo(x);
+//	}
+//}
+
+
 char* code = R"(
 
 uniform Texture2D diffuseTex;
@@ -58,6 +85,7 @@ void f() {
 	native_code("blaaa");
 	v = m * v.xx * (getm() * v);
 }
+
 )";
 	LangSettings lang;
 	lang.outputLanguage = OL_HLSL;

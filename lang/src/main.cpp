@@ -82,10 +82,11 @@ mat4f getm() { x = 10; }
 void f() {
 	mat4f m;
 	vec4f v;
-	native_code("blaaa");
-	v = m * v.xx * (getm() * v);
-	int x = -5*3;
-	return m*v*getm();
+	int x;
+if(x>0)
+	v = -(m * -v.xx * +(getm() * v));
+else if(x<0) x = 10;
+
 }
 
 )";

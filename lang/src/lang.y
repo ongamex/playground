@@ -21,12 +21,20 @@ bool parseExpression(const std::string& inp);
 %}
 
 // Token declaration.
-%token <no_type>		AND OR LE GE EQUALS NOTEQUALS
-%token <no_type>		IF ELSE WHILE FOR IN OUT INOUT
+%token 		AND OR LE GE EQUALS NOTEQUALS
+%token 		WHILE FOR IN OUT INOUT
+
+// if, if-else expression
+%token 		IF 
+%nonassoc				NONASSOC_IF
+%nonassoc				ELSE 
+	
 %token <str_val>		IDENT CODE_STRING RETURN
 %token <float_val>		NUM_FLOAT
 %token <int_val>		NUM_INT
-%token <no_type>		ATTRIBUTE VARYING UNIFORM NATIVE_CODE
+%token 					ATTRIBUTE VARYING UNIFORM NATIVE_CODE
+
+
 
 // Token precedence.
 
@@ -36,6 +44,9 @@ bool parseExpression(const std::string& inp);
 %left '+' '-'
 %left '*' '/'
 %left '.'
+
+%nonassoc NONASSOC_UNARY
+
 
 // Grammar expression types (from yystype).
 %type <node>	fncall_args expr_fncall fndecl_vardecl_var fndecl_vardecl
@@ -158,8 +169,8 @@ stmt :
 	|	assign_stmt ';' 							{ $1->hasSemicolon = true; $$ = $1; }
 	|	FOR '(' vardecl ';' expr ';' expr ')' stmt	{ $$ = ast->push<StmtFor>($3, $5, $7, $9); }
 	|	WHILE '(' expr ')' stmt 					{ $$ = ast->push<StmtWhile>($3, $5); }
-	|	IF '(' expr ')' stmt 						{ $$ = ast->push<StmtIf>($3, $5, nullptr); }
-	|	IF '(' expr ')' stmt ELSE stmt				{ $$ = ast->push<StmtIf>($3, $5, $7); } //[SHIFT-REDUCE]
+	|	IF '(' expr ')' stmt %prec NONASSOC_IF		{ $$ = ast->push<StmtIf>($3, $5, nullptr); }
+	|	IF '(' expr ')' stmt ELSE stmt				{ $$ = ast->push<StmtIf>($3, $5, $7); }
 	|	'{' stmt_list '}' 							{ $2->inBlock = true; $$ = $2; }
 	|	NATIVE_CODE '('  CODE_STRING  ')' ';'		{ $$ = ast->push<StmtNativeCode>($3); }
 	|	RETURN expr ';'								{ $$ = ast->push<StmtReturn>($2); }
@@ -205,7 +216,8 @@ expr_base :
 	|	NUM_FLOAT					        { $$ = ast->push<ExprLiteral>($1); }
 	|	NUM_INT						        { $$ = ast->push<ExprLiteral>($1); }
 	|	expr_fncall					        { $$ = $1; }	
-	|	'-' expr_base						{ $2->exprSign *= -1; $$ = $2; }
+	|	'-' expr_base %prec NONASSOC_UNARY	{ $2->exprSign *= -1; $$ = $2; }
+	|	'+' expr_base %prec NONASSOC_UNARY	{ $$ = $2; }
 	;
 
 	

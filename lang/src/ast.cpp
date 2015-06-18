@@ -4,6 +4,12 @@
 
 #include "ast.h"
 
+namespace
+{
+	const std::string HLSL_ShaderResultStruct = "SGE_SHADER_RESULT";
+	const std::string HLSL_ShaderResultVar = "sge_shader_result";
+}
+
 //-----------------------------------------------------------------------
 // Ast
 //-----------------------------------------------------------------------
@@ -105,10 +111,9 @@ void Node::Declare(Ast* ast)
 //-----------------------------------------------------------------------
 std::string Ident::Internal_GenerateCode(Ast* ast)
 {
-	if(resolvedFvd.trait == Ast::FullVariableDesc::Trait_Varying)
+	if(resolvedFvd.trait == Ast::FullVariableDesc::Trait_StageOutVarying)
 	{
-		// [TODO] Add the actual structure.
-		return "<varying>." + identifier;
+		return HLSL_ShaderResultVar + "." + identifier;
 	}
 	else
 	{
@@ -288,11 +293,12 @@ TypeDesc ExprLiteral::Internal_DeduceType(Ast* ast)
 //------------------------------------------------------------------------------
 std::string Assign::Internal_GenerateCode(Ast* ast)
 {
-	return ident + " = " + expr->GenerateCode(ast);
+	return lval->GenerateCode(ast) + " = " + expr->GenerateCode(ast);
 }
 
 void Assign::Internal_Declare(Ast* ast)
 {
+	lval->Declare(ast);
 	expr->Declare(ast);
 }
 
@@ -469,17 +475,66 @@ void FnDeclArgVarDecl::Internal_Declare(Ast* ast)
 //------------------------------------------------------------------------------
 std::string FuncDecl::Internal_GenerateCode(Ast* ast)
 {
-	std::string retval = retType.GetTypeAsString(ast->lang) + " " + name + "(";
+	std::string retval;
 
-	for(int t = 0; t < args.size(); ++t) {
-		retval += args[t]->GenerateCode(ast);
-		if(t < args.size() - 1) retval += ',';
+	// Check if this is a special function, that needs special attention.
+	if(name == "main")
+	{
+		retval += GenerateMainFuncHLSL(ast);
 	}
+	else
+	{
+		// Just a regular function.
+		retval = retType.GetTypeAsString(ast->lang) + " " + name + "(";
 
-	retval += "){ " + stmt->GenerateCode(ast) + "}";
+		for(int t = 0; t < args.size(); ++t) {
+			retval += args[t]->GenerateCode(ast);
+			if(t < args.size() - 1) retval += ',';
+		}
+
+		retval += "){" + stmt->GenerateCode(ast) + "}";
+	}
 
 	return retval;
 }
+
+std::string FuncDecl::GenerateMainFuncHLSL(Ast* ast)
+{
+	// 1st Declare the output strcture for the main strcture. Usually this is just output varyings + stage specific output
+	std::string retval = "struct " + HLSL_ShaderResultStruct + " {";
+	for(const auto& var : ast->stageOutputVaryings) {
+		retval += var.type.GetTypeAsString(ast->lang) + " " + var.varName + " : " + var.varName + ";";
+	}
+
+	// Add the stage specific output.
+	if(ast->lang.shaderType == ST_Vertex) {
+		retval += "float3 vertex_output : SV_Position;";
+	}
+
+	retval += "};";
+
+	//Declare the function.
+	retval += HLSL_ShaderResultStruct + " main(";
+
+	// Now add the input varyings as input arguments for this function.
+	for(auto& var : ast->stageInputVaryings) {
+		retval += var.type.GetTypeAsString(ast->lang) + " " + var.varName + " : " + var.varName + ",";
+	}
+	retval.pop_back(); // Pop the last comma.
+
+	retval += ")";
+
+	// Fianlly generate the function body statements code.
+	// Also add at the begining and and at the ending the shader program result(varyings, vertex, fargment data ect.)
+	retval += '{';
+	retval += HLSL_ShaderResultStruct + " " + HLSL_ShaderResultVar + ";";
+	retval += stmt->GenerateCode(ast);
+	retval += "return " + HLSL_ShaderResultVar + ";";
+	retval += '}';
+
+	return retval;
+}
+
 
 void FuncDecl::Internal_Declare(Ast* ast)
 {
@@ -536,10 +591,18 @@ std::string GenerateCode(const LangSettings& lang, const char* code)
 		}
 
 		// [TODO] Reconcider to declare these values as local variable in main.
-		for(const auto& var : ast.varyings) {
-			ast.declareVariable(var.type, var.varName, Ast::FullVariableDesc::Trait_Varying);
+		for(const auto& var : ast.stageInputVaryings) {
+			ast.declareVariable(var.type, var.varName, Ast::FullVariableDesc::Trait_StageInVarying);
 		}
-		
+
+		for(const auto& var : ast.stageOutputVaryings) {
+			ast.declareVariable(var.type, var.varName, Ast::FullVariableDesc::Trait_StageOutVarying);
+		}
+
+		// Declare the output varying of the HLSL vertex shader.
+		if(lang.outputLanguage == OL_HLSL && lang.shaderType == ST_Vertex) {
+			ast.declareVariable(TypeDesc(TypeDesc::Type_vec4f), "vertex_output", Ast::FullVariableDesc::Trait_StageOutVarying);
+		}
 
 		// Declare the global unifroms
 		for(const auto& unif : ast.uniforms) {

@@ -84,7 +84,11 @@ struct TypeDesc
 
 	static TypeDesc ResolveType(const TypeDesc& left, const TypeDesc& right)
 	{
-		//[TODO] This is sooo broken....
+		// [TODO] This is sooo broken....
+		// [TODO] move this code...
+		// Being far away form complete, currently we only use this 
+		// in oder to deduce if one of the arguments is a matrix in oder to produce mul(m, ?) instead of m*v 
+		// matrix multiplication for HLSL.
 		auto isPairOf = [left, right](Type a, Type b) {
 			return (left.GetBuiltInType() == a && right.GetBuiltInType() == b) ||
 					(left.GetBuiltInType() == b && right.GetBuiltInType() == a);
@@ -285,9 +289,9 @@ struct Ast
 		enum Trait
 		{
 			Trait_Regular, // Just a regual variable.
-			Trait_Varying, // A varying variable.
+			Trait_StageInVarying, // A varying variable.
+			Trait_StageOutVarying, // A varying variable.
 		};
-
 
 		std::string fullName;
 		TypeDesc type;
@@ -312,7 +316,8 @@ struct Ast
 	std::vector<Node*> nodes;
 
 	std::vector<VertexAttribs> vertexAttribs;
-	std::vector<Varyings> varyings;
+	std::vector<Varyings> stageInputVaryings; // aka. input varyings
+	std::vector<Varyings> stageOutputVaryings; // aka. output varyings
 	std::vector<Uniforms> uniforms;
 
 	std::vector<std::string> scope;
@@ -420,11 +425,11 @@ struct ExprLiteral : public Node
 //---------------------------------------------------------------------------------
 struct Assign : public Node
 {
-	Assign(const std::string& ident, Node* expr) :
-		ident(ident), expr(expr)
+	Assign(Node* lval, Node* expr) :
+		lval(lval), expr(expr)
 	{}
 
-	std::string ident;
+	Node* lval;
 	Node* expr;
 
 	std::string Internal_GenerateCode(Ast* ast) override;
@@ -547,6 +552,10 @@ struct FuncDecl : public Node
 	void Internal_Declare(Ast* ast) override;
 
 	Node* stmt; // the body of the function.
+
+private :
+
+	std::string GenerateMainFuncHLSL(Ast* ast);
 };
 
 struct ProgramElem : public Node

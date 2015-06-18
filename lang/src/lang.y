@@ -91,7 +91,8 @@ grammar_list :
 shader_globals : 
 		// These aren't real nodes...
 		ATTRIBUTE IDENT IDENT ':' IDENT ';'		{ $$ = nullptr; ast->vertexAttribs.push_back({TypeDesc($2), $3, $5}); }
-	|	VARYING	IDENT IDENT	';'					{ $$ = nullptr; ast->varyings.push_back({TypeDesc($2), $3}); }
+	|	IN IDENT IDENT ';'						{ $$ = nullptr; ast->stageInputVaryings.push_back({TypeDesc($2), $3}); }
+	|	OUT IDENT IDENT ';'						{ $$ = nullptr; ast->stageOutputVaryings.push_back({TypeDesc($2), $3}); }
 	|	UNIFORM	IDENT IDENT	';'					{ $$ = nullptr; ast->uniforms.push_back({TypeDesc($2), $3}); }
 	;
 	
@@ -179,7 +180,7 @@ stmt :
 
 		//[TODO] This should become something like expr = expr at least because of array indexing.
 assign_stmt : 
-		IDENT '=' expr				{ $$ = ast->push<Assign>($1.c_str(), $3); }
+		expr '=' expr				{ $$ = ast->push<Assign>($1, $3); }
 	;
 	
 	// A list of statements.

@@ -75,24 +75,27 @@ int main()
 char* code = R"(
 
 uniform Texture2D diffuseTex;
-varying mat4f world;
 
+out vec2f uv;
+in mat4f world;
 
-mat4f getm() { x = 10; }
+mat4f getm() { int x = 10; }
 
-void f() {
+void main() {
 	mat4f m;
 	vec4f v;
 	int x;
-if(x>0)
-	v = -(world * -v.xx * +(getm() * v));
-else if(x<0) x = 10;
-
+	uv = 2;
+	if(x>0)
+		v = -(world * -v.xx * +(getm() * v));
+	else if(x<0) x = 10;
+	vertex_output = v;
 }
 
 )";
 	LangSettings lang;
 	lang.outputLanguage = OL_HLSL;
+	lang.shaderType = ST_Vertex;
 
 	std::string formatted = FormatCode(GenerateCode(lang, code).c_str());
 

@@ -525,7 +525,7 @@ std::string FuncDecl::GenerateMainFuncHLSL(Ast* ast)
 {
 	std::string retval;
 
-	// 1st Declare the output strcture for the main strcture. 
+	// 1st output the definition of the result strcture for the main function. 
 	// Usually this is just output varyings + stage specific output.
 	{
 		retval += "struct " + HLSL_ShaderResultStruct + " {";

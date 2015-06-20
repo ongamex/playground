@@ -42,6 +42,8 @@ struct TypeDesc
 		Type_Undeduced,
 		Type_NoType,
 
+		Type_BuiltInTypeBegin, // Just a marker, pointing right before 1st built in type.
+
 		Type_void,
 		Type_int,
 		Type_bool,
@@ -52,8 +54,25 @@ struct TypeDesc
 		Type_mat4f,
 		Type_Texture2D,
 
-		Type_UserDefined,
+		Type_BuiltInTypeEnd, // Just a marker, pointing right after the last built in type.
+
+		Type_UserDefined, // A user defined class.
 	};
+
+	static std::string GetLangTypeName(const Type type)
+	{
+		if(type == Type_void) return "void";
+		if(type == Type_int) return "int";
+		if(type == Type_bool) return "bool";
+		if(type == Type_float) return "float";
+		if(type == Type_vec2f) return "vec2f";
+		if(type == Type_vec3f) return "vec3f";
+		if(type == Type_vec4f) return "vec4f";
+		if(type == Type_mat4f) return "mat4f";
+		if(type == Type_Texture2D) return "Texture2D";
+
+		throw ParseExcept("GetLangTypeName called with unknow argument");
+	}
 
 	TypeDesc(Type type = Type_Undeduced) : m_type(type) { }
 
@@ -115,6 +134,7 @@ struct TypeDesc
 
 		if(isFloatVectorType)
 		{
+			// Check if this is a swizzle.
 			if(member.size() <= 4)
 			{
 				for(auto ch : member) {
@@ -134,8 +154,6 @@ struct TypeDesc
 
 	std::string GetTypeAsString(const LangSettings& lang) const 
 	{
-		if(m_strType.empty()) return "<empty-str-type>";
-
 		if(GetBuiltInType() == Type_void) return "void";
 		else if(GetBuiltInType() == Type_int) return "int";
 		else if(GetBuiltInType() == Type_float) return "float";
@@ -145,7 +163,10 @@ struct TypeDesc
 		else if(GetBuiltInType() == Type_vec4f) { if(lang.outputLanguage == OL_HLSL) return "float4"; else return "vec4"; }
 		else if(GetBuiltInType() == Type_mat4f) { if(lang.outputLanguage == OL_HLSL) return "float4x4"; else return "mat4"; }
 		else if(GetBuiltInType() == Type_Texture2D) { if(lang.outputLanguage == OL_HLSL) return "Texture2D"; else return "sampler2D"; } 
-		else if(GetBuiltInType() == Type_UserDefined) return m_strType;
+		else if(GetBuiltInType() == Type_UserDefined) {
+			if(m_strType.empty()) return "<empty-str-type>";
+			return m_strType;
+		}
 
 		return "<type-unknown>";
 	}
@@ -289,6 +310,7 @@ struct Ast
 		enum Trait
 		{
 			Trait_Regular, // Just a regual variable.
+			Trait_VertexAttribute, // A vertex attribute.
 			Trait_StageInVarying, // A varying variable.
 			Trait_StageOutVarying, // A varying variable.
 		};

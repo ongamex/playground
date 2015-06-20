@@ -74,6 +74,8 @@ int main()
 
 char* code = R"(
 
+attribute vec3f a_pos : POSITION;
+
 uniform Texture2D diffuseTex;
 
 out vec2f uv;
@@ -83,7 +85,7 @@ mat4f getm() { int x = 10; }
 
 void main() {
 	mat4f m;
-	vec4f v;
+	vec4f v = vec4f(5);
 	int x;
 	uv = 2;
 	if(x>0)

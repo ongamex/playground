@@ -52,8 +52,9 @@ bool parseExpression(const std::string& inp);
 %type <node>	fncall_args expr_fncall fndecl_vardecl_var fndecl_vardecl
 %type <node>	expr_base expr stmt
 %type <node>	vardecl_var_list vardecl assign_stmt
-%type <node>	stmt_list function_decl shader_globals
+%type <node>	stmt_list function_decl 
 %type <node>	program grammar_elem grammar_list
+%type <node>	shader_globals // These actually have no type.
 
 // The root.
 %start program
@@ -197,7 +198,6 @@ stmt_list :
 	//-------------------------------------------------
 
 expr : expr_base { $$ = $1; ast->addDeduct($1); }
-	
 expr_base :
 		'(' expr_base ')'			    	{ $2->inParens = true; $$ = $2; }
 	|	expr_base '.' IDENT					{ $$ = ast->push<ExprMemberAccess>($1, $3); }

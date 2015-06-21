@@ -11,28 +11,89 @@ namespace
 }
 
 //-----------------------------------------------------------------------
-// Ast
+//TypeDesc
 //-----------------------------------------------------------------------
-std::string Ast::GenerateGlobalUniforms(const LangSettings& lang)
+TypeDesc::TypeDesc(std::string strType)
 {
-	std::string result;
+	m_strType = strType;
 
-	for(const auto& unif : uniforms)
+	if(strType == "void") m_type = Type_void;
+	else if(strType == "bool") m_type = Type_bool;
+	else if(strType == "int") m_type = Type_int;
+	else if(strType == "float") m_type = Type_float;
+	else if(strType == "vec2f") m_type = Type_vec2f;
+	else if(strType == "vec3f") m_type = Type_vec3f;
+	else if(strType == "vec4f") m_type = Type_vec4f;
+	else if(strType == "mat4f") m_type = Type_mat4f;
+	else if(strType == "Texture2D") m_type = Type_Texture2D;
+	else { m_type = Type_UserDefined; }
+}
+
+std::string TypeDesc::GetLangTypeName(const Type type)
+{
+	if(type == Type_void) return "void";
+	if(type == Type_bool) return "bool";
+	if(type == Type_int) return "int";
+	if(type == Type_float) return "float";
+	if(type == Type_vec2f) return "vec2f";
+	if(type == Type_vec3f) return "vec3f";
+	if(type == Type_vec4f) return "vec4f";
+	if(type == Type_mat4f) return "mat4f";
+	if(type == Type_Texture2D) return "Texture2D";
+
+	throw ParseExcept("GetLangTypeName called with unknow argument");
+}
+
+TypeDesc TypeDesc::GetMemberType(const TypeDesc& parent, const std::string& member)
+{
+	//[TODO] This is sooo broken....
+	const bool isFloatVectorType = 
+			(parent.GetBuiltInType() == Type_vec2f) 
+		|| (parent.GetBuiltInType() == Type_vec3f) 
+		|| (parent.GetBuiltInType() == Type_vec4f);
+
+	if(isFloatVectorType)
 	{
-		result += "uniform " + unif.type.GetTypeAsString(lang) + " " + unif.varName + ";";
-
-		if(lang.outputLanguage == OL_HLSL)
+		// Check if this is a swizzle.
+		if(member.size() <= 4)
 		{
-			//[TODO] Arrays...
-			if(unif.type.GetBuiltInType() == TypeDesc::Type_Texture2D) {
-				result += "uniform sampler " + unif.varName  + "_sgeSS;";
+			for(auto ch : member) {
+				if(ch != 'x' && ch != 'y' && ch != 'z' && ch != 'w') {
+					throw ParseExcept("Trying to reference unexisting member: " + member);
+				}
 			}
+
+			if(member.size() == 2) return TypeDesc(Type_vec2f);
+			if(member.size() == 3) return TypeDesc(Type_vec3f);
+			if(member.size() == 4) return TypeDesc(Type_vec4f);
 		}
 	}
 
-	return result;
+	throw ParseExcept("Unknown member access: " + member);
 }
 
+std::string TypeDesc::GetTypeAsString(const LangSettings& lang) const 
+{
+	if(GetBuiltInType() == Type_void) return "void";
+	else if(GetBuiltInType() == Type_int) return "int";
+	else if(GetBuiltInType() == Type_float) return "float";
+	else if(GetBuiltInType() == Type_bool) return "bool";
+	else if(GetBuiltInType() == Type_vec2f) { if(lang.outputLanguage == OL_HLSL) return "float2"; else return "vec2"; }
+	else if(GetBuiltInType() == Type_vec3f) { if(lang.outputLanguage == OL_HLSL) return "float3"; else return "vec3"; }
+	else if(GetBuiltInType() == Type_vec4f) { if(lang.outputLanguage == OL_HLSL) return "float4"; else return "vec4"; }
+	else if(GetBuiltInType() == Type_mat4f) { if(lang.outputLanguage == OL_HLSL) return "float4x4"; else return "mat4"; }
+	else if(GetBuiltInType() == Type_Texture2D) { if(lang.outputLanguage == OL_HLSL) return "Texture2D"; else return "sampler2D"; } 
+	else if(GetBuiltInType() == Type_UserDefined) {
+		if(m_strType.empty()) return "<empty-str-type>";
+		return m_strType;
+	}
+
+	return "<type-unknown>";
+}
+
+//-----------------------------------------------------------------------
+// Ast
+//-----------------------------------------------------------------------
 Ast::FullVariableDesc Ast::declareVariable(const TypeDesc& td, const std::string& name, FullVariableDesc::Trait trait)
 {
 	FullVariableDesc fvd;
@@ -111,14 +172,22 @@ void Node::Declare(Ast* ast)
 //-----------------------------------------------------------------------
 std::string Ident::Internal_GenerateCode(Ast* ast)
 {
-	if(resolvedFvd.trait == Ast::FullVariableDesc::Trait_StageOutVarying)
+	const bool hlsl = ast->OutLangIs(OL_HLSL);
+	const bool glsl = ast->OutLangIs(OL_GLSL);
+
+	if(hlsl && resolvedFvd.trait == Ast::FullVariableDesc::Trait_StageOutVarying)
 	{
 		return HLSL_ShaderResultVar + "." + identifier;
 	}
-	else
+
+	if(glsl && resolvedFvd.trait == Ast::FullVariableDesc::Trait_StageOutVarying)
 	{
-		return identifier;
+		if(identifier == "vertex_output") { return "gl_Position"; }
 	}
+
+	// Just a regular variable I suppose.
+	return identifier;
+	
 }
 
 void Ident::Internal_Declare(Ast* ast)
@@ -164,8 +233,9 @@ std::string ExprBin::Internal_GenerateCode(Ast* ast)
 		case EBT_Sub : return left->GenerateCode(ast) + (" - ") + right->GenerateCode(ast);
 		case EBT_Mul :
 		{
-			const bool isMatrixExpr = left->DeduceType(ast).GetBuiltInType() == TypeDesc::Type_mat4f 
-				|| right->DeduceType(ast).GetBuiltInType() == TypeDesc::Type_mat4f;
+			const bool isMatrixExpr = 
+				   left->DeduceType(ast).GetBuiltInType() == Type_mat4f 
+				|| right->DeduceType(ast).GetBuiltInType() == Type_mat4f;
 
 			if(ast->lang.outputLanguage == OL_HLSL && isMatrixExpr)
 			{
@@ -199,16 +269,60 @@ void ExprBin::Internal_Declare(Ast* ast)
 
 TypeDesc ExprBin::Internal_DeduceType(Ast* ast)
 {
-	if(resolvedType != TypeDesc()) return resolvedType;
+	// Check if the type has been already resolved
+	if(resolvedType != Type_Undeduced) return resolvedType;
 
+	// Resolve the arguments type.
+	const auto lt = left->DeduceType(ast);
+	const auto rt = right->DeduceType(ast);
+
+	// Just a helper function...
+	auto isPairOf = [lt, rt](Type a, Type b) {
+	return (lt.GetBuiltInType() == a && rt.GetBuiltInType() == b) ||
+			(lt.GetBuiltInType() == b && rt.GetBuiltInType() == a);
+	};
+
+	// Deduce the type.
 	switch(type)
 	{
 		case EBT_Add : 
 		case EBT_Sub :
-		case EBT_Mul : 
-		case EBT_Div : 
-			if(resolvedType == TypeDesc()) resolvedType = TypeDesc::ResolveType(left->DeduceType(ast), right->DeduceType(ast));
+		{
+			if(lt != rt) 
+				throw ParseExcept("+/- operator called with mixed types: " + TypeDesc::GetLangTypeName(lt.GetBuiltInType()) + " " + TypeDesc::GetLangTypeName(rt.GetBuiltInType()));
+		
+			resolvedType = lt;
 			break;
+		}
+
+		case EBT_Mul : 
+		{
+			if(lt == rt) resolvedType = lt;
+			else if(isPairOf(Type_int, Type_float)) resolvedType = TypeDesc(Type_float);
+			else if(isPairOf(Type_float, Type_vec2f)) resolvedType = TypeDesc(Type_vec2f);
+			else if(isPairOf(Type_float, Type_vec3f)) resolvedType = TypeDesc(Type_vec3f);
+			else if(isPairOf(Type_float, Type_vec4f)) resolvedType = TypeDesc(Type_vec4f);
+			else if(isPairOf(Type_mat4f, Type_vec4f)) resolvedType = TypeDesc(Type_vec4f);
+			
+			// The type should be deduced by now, if not this is an error.
+			if(resolvedType == Type_Undeduced)
+				throw ParseExcept("* operator called with incompatible types: " + TypeDesc::GetLangTypeName(lt.GetBuiltInType()) + " " + TypeDesc::GetLangTypeName(rt.GetBuiltInType()));
+		
+			break;
+		}
+		
+		case EBT_Div :
+		{
+			if(isPairOf(Type_float, Type_float)) resolvedType = TypeDesc(Type_float);
+			else if(isPairOf(Type_int, Type_int)) resolvedType = TypeDesc(Type_int);
+
+			// The type should be deduced by now, if not this is an error.
+			if(resolvedType == Type_Undeduced)
+				throw ParseExcept("/ operator called with incompatible types: " + TypeDesc::GetLangTypeName(lt.GetBuiltInType()) + " " + TypeDesc::GetLangTypeName(rt.GetBuiltInType()));
+			break;
+		}
+		
+		// Logical operators. Just ignore the arg types and return a boolean.
 		case EBT_Greater :
 		case EBT_GEquals : 
 		case EBT_Less :
@@ -217,11 +331,15 @@ TypeDesc ExprBin::Internal_DeduceType(Ast* ast)
 		case EBT_NEquals :
 		case EBT_Or :
 		case EBT_And :
-			resolvedType = TypeDesc(TypeDesc::Type_bool);
+		{
+			resolvedType = TypeDesc(Type_bool);
 			break;
+		}
 		default :
-			throw ParseExcept("Unknown type");
+			throw ParseExcept("Unknown binary expression type!");
 	}
+
+	if(resolvedType == Type_Undeduced) throw("ExprBin type deduction failed");
 
 	return resolvedType;
 }
@@ -236,16 +354,21 @@ std::string FuncCall::Internal_GenerateCode(Ast* ast)
 	std::string callFnName; // Stores the actual function name that will be called.
 
 	// Check if this is a type constructor.
-	for(int t = TypeDesc::Type_BuiltInTypeBegin + 1; t < TypeDesc::Type_BuiltInTypeEnd; ++t)
+	for(int t = Type_BuiltInTypeBegin + 1; t < Type_BuiltInTypeEnd; ++t)
 	{
-		const std::string typeName = TypeDesc::GetLangTypeName((TypeDesc::Type)t);
+		const std::string typeName = TypeDesc::GetLangTypeName((Type)t);
 		
 		if(fnName == typeName) 
 		{
-			TypeDesc type((TypeDesc::Type)t);
+			TypeDesc type((Type)t);
 			callFnName = type.GetTypeAsString(ast->lang);
 			break;
 		}
+	}
+
+	if(ast->OutLangIs(OL_GLSL) && fnName == "lerp")
+	{
+		callFnName = "mix";
 	}
 	
 	// If this isn't a special function just call 
@@ -283,7 +406,7 @@ TypeDesc FuncCall::Internal_DeduceType(Ast* ast)
 std::string ExprLiteral::Internal_GenerateCode(Ast* ast)
 {
 	char buff[64] = {0};
-	if(type.GetBuiltInType() == TypeDesc::Type_float)
+	if(type.GetBuiltInType() == Type_float)
 	{
 		sprintf(buff, "%f", float_val);
 
@@ -297,7 +420,7 @@ std::string ExprLiteral::Internal_GenerateCode(Ast* ast)
 
 		return buff;
 	}
-	else if(type.GetBuiltInType() == TypeDesc::Type_int)
+	else if(type.GetBuiltInType() == Type_int)
 	{
 		sprintf(buff, "%d", int_val);
 		return buff;
@@ -501,7 +624,8 @@ std::string FuncDecl::Internal_GenerateCode(Ast* ast)
 	std::string retval;
 
 	// Check if this is a special function, that needs special attention.
-	if(name == "main")
+	// For GLSL the main function is just a regular function.
+	if(ast->OutLangIs(OL_HLSL) && name == "main")
 	{
 		retval += GenerateMainFuncHLSL(ast);
 	}
@@ -625,9 +749,37 @@ std::string GenerateCode(const LangSettings& lang, const char* code)
 		ast.lang = lang;
 		LangParseExpression(code, &ast);
 
-		if(!ast.program)
-		{
+		if(!ast.program) {
 			throw ParseExcept("Failed while compiling program!");
+		}
+
+		// Declare the predefined functions for the language.
+		// JUST A REMINDIER: 
+		// DOUBLE CHECK THE ORDER OF THE ARGUMENTS OF THE NATIVE FUNCTIONS.
+		{
+			// [TODO] find a way to implement lerp.clamp ect. they depend on the input type.
+			//// Declare lerp.
+			//// Keep in mind that we are defining the functions below with float return type. But actually they heve a spec for almost every type.
+			//// For now we are safe becase we only care if the expression type is a matrix or not.
+			//ast.declareFunction(Type_float, "lerp"); // Lerp is called mix in GLSL. This case is handled in FuncCall.
+			//ast.declareFunction(Type_float, "clamp");
+
+			// For hlsl trigonometrix functions have vector type specializations, but for now lets pretend
+			// that there isn't.
+			ast.declareFunction(Type_float, "sin");
+			ast.declareFunction(Type_float, "cos");
+			ast.declareFunction(Type_float, "tan");
+			ast.declareFunction(Type_float, "tan2");
+
+			ast.declareFunction(Type_float, "asin");
+			ast.declareFunction(Type_float, "acos");
+			ast.declareFunction(Type_float, "atan");
+
+			ast.declareFunction(Type_float, "sincos");
+
+			ast.declareFunction(Type_float, "sqrt");
+			ast.declareFunction(Type_float, "rsqrt");
+
 		}
 
 		// Vertex Attributes.
@@ -650,11 +802,9 @@ std::string GenerateCode(const LangSettings& lang, const char* code)
 			ast.declareVariable(var.type, var.varName, Ast::FullVariableDesc::Trait_StageOutVarying);
 		}
 
-		// Declare the output varying of the HLSL vertex shader.
-		if(lang.outputLanguage == OL_HLSL && lang.shaderType == ST_Vertex)
-		{
-			ast.declareVariable(TypeDesc(TypeDesc::Type_vec4f), "vertex_output", Ast::FullVariableDesc::Trait_StageOutVarying);
-		}
+		// Declare the output varying of the HLSL.
+		ast.declareVariable(TypeDesc(Type_vec4f), "vertex_output", Ast::FullVariableDesc::Trait_StageOutVarying);
+		
 
 		// Declare the global unifroms
 		for(const auto& unif : ast.uniforms)
@@ -665,10 +815,51 @@ std::string GenerateCode(const LangSettings& lang, const char* code)
 		// Declare everything else.
 		ast.program->Declare(&ast);
 		
+		// Deduce a type for every expression that was matched by bison.
 		for(auto n : ast.deductionQueue) n->DeduceType(&ast);
 
 		std::string code;
-		code = ast.GenerateGlobalUniforms(lang) + ast.program->GenerateCode(&ast);
+
+		// Before anytinhg declare the globals uniform vertex attibs ect.
+
+		// GLSL vertex attributes input and output varyings...
+		if(ast.OutLangIs(OL_GLSL))
+		{
+			for(const auto& var : ast.vertexAttribs)
+			{
+				code += "attribute " + var.type.GetTypeAsString(lang) + " " + var.varName + ";";
+			}
+
+			for(const auto& var : ast.stageInputVaryings)
+			{
+				// [TODO] for older versions of GLSL this should be "vaying" instead of in
+				code += "in " + var.type.GetTypeAsString(lang) + " " + var.varName + ";";
+			}
+
+			for(const auto& var : ast.stageOutputVaryings)
+			{
+				// [TODO] for older versions of GLSL this should be "vaying" instead of out
+				code += "out " + var.type.GetTypeAsString(lang) + " " + var.varName + ";";
+			}
+		}
+
+		// Uniforms...
+		for(const auto& unif : ast.uniforms)
+		{
+			code += "uniform " + unif.type.GetTypeAsString(lang) + " " + unif.varName + ";";
+
+			// Texture for HLSL need a sampler. Define 1 sampler for every texture.
+			if(lang.outputLanguage == OL_HLSL)
+			{
+				//[TODO] Arrays...
+				if(unif.type.GetBuiltInType() == Type_Texture2D) {
+					code += "uniform sampler " + unif.varName  + "_sgeSS;";
+				}
+			}
+		}
+
+		// Finally genrate the code form the AST treee.
+		code += ast.program->GenerateCode(&ast);
 		return code;
 	}
 	catch(const std::exception& e) {

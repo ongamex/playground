@@ -81,15 +81,15 @@ uniform Texture2D diffuseTex;
 out vec2f uv;
 in mat4f world;
 
-mat4f getm() { int x = 10; }
+mat4f getm() { return 6; }
 
 void main() {
 	mat4f m;
 	vec4f v = vec4f(5);
-	int x;
+	int x = lerp(0.3, 0.0, 1.0);
 	uv = 2;
 	if(x>0)
-		v = -(world * -v.xx * +(getm() * v));
+		v = -(world * -v.xxxy * +(getm() * v));
 	else if(x<0) x = 10;
 	vertex_output = v;
 }

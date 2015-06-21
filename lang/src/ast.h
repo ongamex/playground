@@ -35,142 +35,57 @@ struct LangSettings
 	ShaderType shaderType;
 };
 
+enum Type
+{
+	Type_Undeduced,
+
+	Type_BuiltInTypeBegin, // Just a marker, pointing right before 1st built in type.
+
+	Type_void,
+	Type_bool,
+	Type_int,
+		
+	Type_float,
+	Type_vec2f,
+	Type_vec3f,
+	Type_vec4f,
+	Type_mat4f,
+	Type_Texture2D,
+
+	Type_BuiltInTypeEnd, // Just a marker, pointing right after the last built in type.
+
+	Type_UserDefined, // A user defined class.
+};
+
 struct TypeDesc
 {
-	enum Type
+public :
+
+	static std::string GetLangTypeName(const Type type);
+	static bool IsVectorType(const Type type)
 	{
-		Type_Undeduced,
-		Type_NoType,
-
-		Type_BuiltInTypeBegin, // Just a marker, pointing right before 1st built in type.
-
-		Type_void,
-		Type_int,
-		Type_bool,
-		Type_float,
-		Type_vec2f,
-		Type_vec3f,
-		Type_vec4f,
-		Type_mat4f,
-		Type_Texture2D,
-
-		Type_BuiltInTypeEnd, // Just a marker, pointing right after the last built in type.
-
-		Type_UserDefined, // A user defined class.
-	};
-
-	static std::string GetLangTypeName(const Type type)
-	{
-		if(type == Type_void) return "void";
-		if(type == Type_int) return "int";
-		if(type == Type_bool) return "bool";
-		if(type == Type_float) return "float";
-		if(type == Type_vec2f) return "vec2f";
-		if(type == Type_vec3f) return "vec3f";
-		if(type == Type_vec4f) return "vec4f";
-		if(type == Type_mat4f) return "mat4f";
-		if(type == Type_Texture2D) return "Texture2D";
-
-		throw ParseExcept("GetLangTypeName called with unknow argument");
+		if(type == Type_vec2f) return true;
+		if(type == Type_vec3f) return true;
+		if(type == Type_vec4f) return true;
+		return false;
 	}
+	
+public :
 
-	TypeDesc(Type type = Type_Undeduced) : m_type(type) { }
+	TypeDesc(Type type = Type_Undeduced) : m_type(type) {}
+	explicit TypeDesc(std::string strType);
 
-	TypeDesc(std::string strType) : m_strType(strType)
-	{
-		if(strType == "void") m_type = Type_void;
-		else if(strType == "int") m_type = Type_int;
-		else if(strType == "bool") m_type = Type_bool;
-		else if(strType == "float") m_type = Type_float;
-		else if(strType == "vec2f") m_type = Type_vec2f;
-		else if(strType == "vec3f") m_type = Type_vec3f;
-		else if(strType == "vec4f") m_type = Type_vec4f;
-		else if(strType == "mat4f") m_type = Type_mat4f;
-		else if(strType == "Texture2D") m_type = Type_Texture2D;
-		else { m_type = Type_UserDefined; }
-	}
+	bool IsVectorType() const { return IsVectorType(GetBuiltInType()); }
+	bool operator==(const Type type) const { return type == m_type; }
+	bool operator!=(const Type type) const { return type != m_type; }
 
-	bool operator==(const TypeDesc& other) const
-	{
+	bool operator==(const TypeDesc& other) const {
 		if(m_type != Type_UserDefined) return m_type == other.m_type;
 		return m_strType == other.m_strType;
 	}
-
-	bool operator!=(const TypeDesc& other) const
-	{
-		return !(*this == other);
-	}
-
-	static TypeDesc ResolveType(const TypeDesc& left, const TypeDesc& right)
-	{
-		// [TODO] This is sooo broken....
-		// [TODO] move this code...
-		// Being far away form complete, currently we only use this 
-		// in oder to deduce if one of the arguments is a matrix in oder to produce mul(m, ?) instead of m*v 
-		// matrix multiplication for HLSL.
-		auto isPairOf = [left, right](Type a, Type b) {
-			return (left.GetBuiltInType() == a && right.GetBuiltInType() == b) ||
-					(left.GetBuiltInType() == b && right.GetBuiltInType() == a);
-		};
-
-		if(isPairOf(Type_int, Type_float)) return TypeDesc(Type_float);
-		else if(isPairOf(Type_float, Type_vec2f)) return TypeDesc(Type_vec2f);
-		else if(isPairOf(Type_float, Type_vec3f)) return TypeDesc(Type_vec3f);
-		else if(isPairOf(Type_float, Type_vec4f)) return TypeDesc(Type_vec4f);
-		else if(isPairOf(Type_mat4f, Type_vec4f)) return TypeDesc(Type_vec4f);
-		else if(left == right) return left;
-
-		// Unknown expression cofiguration
-		return TypeDesc(Type_NoType);
-	}
-
-	static TypeDesc GetMemberType(const TypeDesc& parent, const std::string& member)
-	{
-		//[TODO] This is sooo broken....
-		const bool isFloatVectorType = 
-			   (parent.GetBuiltInType() == Type_vec2f) 
-			|| (parent.GetBuiltInType() == Type_vec3f) 
-			|| (parent.GetBuiltInType() == Type_vec4f);
-
-		if(isFloatVectorType)
-		{
-			// Check if this is a swizzle.
-			if(member.size() <= 4)
-			{
-				for(auto ch : member) {
-					if(ch != 'x' && ch != 'y' && ch != 'z' && ch != 'w') {
-						throw ParseExcept("Trying to reference unexisting member: " + member);
-					}
-				}
-
-				if(member.size() == 2) return TypeDesc(Type_vec2f);
-				if(member.size() == 3) return TypeDesc(Type_vec3f);
-				if(member.size() == 4) return TypeDesc(Type_vec4f);
-			}
-		}
-
-		throw ParseExcept("Unknown member access: " + member);
-	}
-
-	std::string GetTypeAsString(const LangSettings& lang) const 
-	{
-		if(GetBuiltInType() == Type_void) return "void";
-		else if(GetBuiltInType() == Type_int) return "int";
-		else if(GetBuiltInType() == Type_float) return "float";
-		else if(GetBuiltInType() == Type_bool) return "bool";
-		else if(GetBuiltInType() == Type_vec2f) { if(lang.outputLanguage == OL_HLSL) return "float2"; else return "vec2"; }
-		else if(GetBuiltInType() == Type_vec3f) { if(lang.outputLanguage == OL_HLSL) return "float3"; else return "vec3"; }
-		else if(GetBuiltInType() == Type_vec4f) { if(lang.outputLanguage == OL_HLSL) return "float4"; else return "vec4"; }
-		else if(GetBuiltInType() == Type_mat4f) { if(lang.outputLanguage == OL_HLSL) return "float4x4"; else return "mat4"; }
-		else if(GetBuiltInType() == Type_Texture2D) { if(lang.outputLanguage == OL_HLSL) return "Texture2D"; else return "sampler2D"; } 
-		else if(GetBuiltInType() == Type_UserDefined) {
-			if(m_strType.empty()) return "<empty-str-type>";
-			return m_strType;
-		}
-
-		return "<type-unknown>";
-	}
-
+	bool operator!=(const TypeDesc& other) const { return !(*this == other); }
+	static TypeDesc GetMemberType(const TypeDesc& parent, const std::string& member);
+	std::string GetTypeAsString(const LangSettings& lang) const ;
 	Type GetBuiltInType() const { return m_type; }
 
 private : 
@@ -325,8 +240,6 @@ struct Ast
 		TypeDesc retType;
 	};
 
-	std::string GenerateGlobalUniforms(const LangSettings& lang);
-
 	// Declares a variable at the current scope.
 	FullVariableDesc declareVariable(const TypeDesc& td, const std::string& name,  FullVariableDesc::Trait trait = FullVariableDesc::Trait_Regular);
 	void declareFunction(const TypeDesc& returnType, const std::string& name);
@@ -349,6 +262,7 @@ struct Ast
 	std::vector<Node*> deductionQueue;
 
 	LangSettings lang;
+	bool OutLangIs(OutputLanguage ol) const { return lang.outputLanguage == ol; }
 };
 
 //-------------------------------------------------------------------------

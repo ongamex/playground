@@ -233,11 +233,19 @@ std::string ExprBin::Internal_GenerateCode(Ast* ast)
 		case EBT_Sub : return left->GenerateCode(ast) + (" - ") + right->GenerateCode(ast);
 		case EBT_Mul :
 		{
-			const bool isMatrixExpr = 
-				   left->DeduceType(ast).GetBuiltInType() == Type_mat4f 
-				|| right->DeduceType(ast).GetBuiltInType() == Type_mat4f;
+			// in HLSL matrix multiplication is a bit odd. mathematical multiplication with matrices is
+			// done with mul(m,?) while component whise matrix multiplication is done with *.
+			const Type lt = left->DeduceType(ast).GetBuiltInType();
+			const Type rt = right->DeduceType(ast).GetBuiltInType();
 
-			if(ast->lang.outputLanguage == OL_HLSL && isMatrixExpr)
+			const bool hasMatrix = (lt == Type_mat4f  || rt == Type_mat4f);
+			const bool hasScalar = (lt == Type_float  || rt == Type_float) || (lt == Type_int  || rt == Type_int);
+
+			const bool isAtLeastOneAscalar = 
+				left->DeduceType(ast).GetBuiltInType() == Type_float 
+				|| right->DeduceType(ast).GetBuiltInType() == Type_float;
+
+			if(ast->lang.outputLanguage == OL_HLSL && hasMatrix && !hasScalar)
 			{
 				return "mul(" + left->GenerateCode(ast) + "," + right->GenerateCode(ast) + ")";
 			}
@@ -255,7 +263,7 @@ std::string ExprBin::Internal_GenerateCode(Ast* ast)
 		case EBT_NEquals :  return left->GenerateCode(ast) + (" != ") + right->GenerateCode(ast);
 		case EBT_Or :       return left->GenerateCode(ast) + (" || ") + right->GenerateCode(ast);
 		case EBT_And :      return left->GenerateCode(ast) + (" && ") + right->GenerateCode(ast);
-		default :           return left->GenerateCode(ast) + (" ??? ") + right->GenerateCode(ast);
+		default :           return left->GenerateCode(ast) + (" <unknown-bin-op> ") + right->GenerateCode(ast);
 	}
 
 	return "expr ??? expr";
@@ -303,6 +311,8 @@ TypeDesc ExprBin::Internal_DeduceType(Ast* ast)
 			else if(isPairOf(Type_float, Type_vec3f)) resolvedType = TypeDesc(Type_vec3f);
 			else if(isPairOf(Type_float, Type_vec4f)) resolvedType = TypeDesc(Type_vec4f);
 			else if(isPairOf(Type_mat4f, Type_vec4f)) resolvedType = TypeDesc(Type_vec4f);
+			else if(isPairOf(Type_mat4f, Type_float)) resolvedType = TypeDesc(Type_mat4f);
+			else if(isPairOf(Type_mat4f, Type_int)) resolvedType = TypeDesc(Type_mat4f);
 			
 			// The type should be deduced by now, if not this is an error.
 			if(resolvedType == Type_Undeduced)
@@ -366,14 +376,12 @@ std::string FuncCall::Internal_GenerateCode(Ast* ast)
 		}
 	}
 
-	if(ast->OutLangIs(OL_GLSL) && fnName == "lerp")
-	{
-		callFnName = "mix";
-	}
+	// Both hlsl and glsl lerp/mix functions are supported.
+	if(ast->OutLangIs(OL_GLSL) && fnName == "lerp") callFnName = "mix";
+	if(ast->OutLangIs(OL_HLSL) && fnName == "mix") callFnName = "lerp";
 	
-	// If this isn't a special function just call 
-	if(callFnName.empty())
-	{
+	// If this is just a regular fn call.
+	if(callFnName.empty()) {
 		callFnName = fnName;
 	}
 
@@ -391,12 +399,47 @@ std::string FuncCall::Internal_GenerateCode(Ast* ast)
 
 void FuncCall::Internal_Declare(Ast* ast)
 {
-	resolvedType = ast->findFuncDecl(fnName).retType;
 	for(auto& arg : args) arg->Declare(ast);
 }
 
 TypeDesc FuncCall::Internal_DeduceType(Ast* ast)
 {
+	if(resolvedType != Type_Undeduced) return resolvedType;
+
+	//[HARDCODED]
+	// Function calls type deduction has special behavior for some specific functions that is hardcoded here.
+	// The right thing to do is to support multiple function declaration(based on the argument types),
+	// but currently these functions are the only real cases(or at least known to me).
+	if(	fnName == "lerp" || fnName == "mix" // linear interpolation support both hlsl "lerp" and glsl "mix".
+		|| fnName == "clamp")
+	{
+		if(args.size() != 3) throw ParseExcept("lerp called with wrong arg count(should be 3: x a,b)");
+
+		if(args[0]->DeduceType(ast) != Type_float) throw ParseExcept("lerp interpolation coeff isn't  a float!"); // the interpolation coeff must be a float.
+		if(args[1]->DeduceType(ast) != args[2]->DeduceType(ast)) throw ParseExcept("lerp mixed arguments type");
+
+		resolvedType = args[1]->DeduceType(ast);
+	}
+
+	// Check if this is a type constructor.
+	if(resolvedType == Type_Undeduced)
+	for(int t = Type_BuiltInTypeBegin + 1; t < Type_BuiltInTypeEnd; ++t)
+	{
+		const std::string typeName = TypeDesc::GetLangTypeName((Type)t);
+		
+		if(fnName == typeName) 
+		{
+			resolvedType = TypeDesc((Type)t);
+			break;
+		}
+	}
+
+	// Just a regualr function call.
+	if(resolvedType == Type_Undeduced)
+	{	
+		resolvedType = ast->findFuncDecl(fnName).retType;
+	}
+
 	return resolvedType;
 }
 
@@ -547,7 +590,7 @@ std::string StmtReturn::Internal_GenerateCode(Ast* ast)
 		return std::string("return ") + expr->GenerateCode(ast) + ";";
 	}
 
-	return expr->GenerateCode(ast) + ";";
+	return "return;";
 }
 
 void StmtReturn::Internal_Declare(Ast* ast)

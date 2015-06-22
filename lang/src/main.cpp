@@ -88,23 +88,37 @@ void main() {
 	vec4f v = vec4f(5);
 	int x = lerp(0.3, 0.0, 1.0);
 	uv = 2;
-	if(x>0)
+	if(x>0){
 		v = -(world * -v.xxxy * +(getm() * v));
+		vec3f a_pos =  v;
+		v = a_pos;
+	}
 	else if(x<0) x = 10;
 	vertex_output = v;
 
-	m * lerp(0.3, 5.0, 10.0) * vec4f(0.0);
+	a_pos = m * lerp(0.3, 5.0, 10.0) * vec4f(0.0);
 	m * mix(0.3, vec4f(0), vec4f(1.0));
 }
 
 )";
-	LangSettings lang;
-	lang.outputLanguage = OL_HLSL;
-	lang.shaderType = ST_Vertex;
+	{
+		LangSettings lang;
+		lang.outputLanguage = OL_HLSL;
+		lang.shaderType = ST_Vertex;
 
-	std::string formatted = FormatCode(GenerateCode(lang, code).c_str());
+		std::string formatted = FormatCode(GenerateCode(lang, code).c_str());
+		std::cout << formatted;
+	}
+	std::cout << "\n\n=========================================\n\n";
+	{
+		LangSettings lang;
+		lang.outputLanguage = OL_GLSL;
+		lang.shaderType = ST_Vertex;
 
-	std::cout << formatted;
+		std::string formatted = FormatCode(GenerateCode(lang, code).c_str());
+		std::cout << formatted;
+	}
+
 	std::cin.get();
 	return 0;
 }

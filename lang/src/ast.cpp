@@ -185,6 +185,16 @@ std::string Ident::Internal_GenerateCode(Ast* ast)
 		if(identifier == "vertex_output") { return "gl_Position"; }
 	}
 
+	// Vertex attribute. For GLSL use the semantic name instead of the actual variable name.
+	if(glsl && resolvedFvd.trait == Ast::FullVariableDesc::Trait_VertexAttribute)
+	{
+		for(const auto& attr : ast->vertexAttribs) {
+			if(attr.varName == identifier) return attr.semantic;
+		}
+
+		throw ParseExcept("Attribute '" + identifier + "\' not found!");
+	}
+
 	// Just a regular variable I suppose.
 	return identifier;
 	
@@ -784,13 +794,14 @@ void ProgramElem::Internal_Declare(Ast* ast)
 // Declared in lang.y
 bool LangParseExpression(const char* code, Ast* ast);
 
-std::string GenerateCode(const LangSettings& lang, const char* code)
+std::string GenerateCode(const LangSettings& lang, const char* pCode)
 {
 	try 
 	{
 		Ast ast;
 		ast.lang = lang;
-		LangParseExpression(code, &ast);
+		LangParseExpression(pCode, &ast); // Build the AST tree.
+		std::string code;
 
 		if(!ast.program) {
 			throw ParseExcept("Failed while compiling program!");
@@ -825,52 +836,49 @@ std::string GenerateCode(const LangSettings& lang, const char* code)
 
 		}
 
-		// Vertex Attributes.
-		// [TODO] Reconcider to declare these values as local variable in main.
-		for(const auto& var : ast.vertexAttribs) {
-			ast.declareVariable(var.type, var.varName, Ast::FullVariableDesc::Trait_VertexAttribute);
-		}
-
-		// Input varyings. 
-		// [TODO] Reconcider to declare these values as local variable in main.
-		for(const auto& var : ast.stageInputVaryings)
+		// Declare the vertex attributes, io varyings, and uniforms
 		{
-			ast.declareVariable(var.type, var.varName, Ast::FullVariableDesc::Trait_StageInVarying);
-		}
+			// Vertex Attributes.
+			// [TODO] Reconcider to declare these values as local variable in main.
+			for(const auto& var : ast.vertexAttribs) {
+				ast.declareVariable(var.type, var.varName, Ast::FullVariableDesc::Trait_VertexAttribute);
+			}
 
-		// Output varyings.
-		// [TODO] Reconcider to declare these values as local variable in main.
-		for(const auto& var : ast.stageOutputVaryings)
-		{
-			ast.declareVariable(var.type, var.varName, Ast::FullVariableDesc::Trait_StageOutVarying);
-		}
+			// Input varyings. 
+			// [TODO] Reconcider to declare these values as local variable in main.
+			for(const auto& var : ast.stageInputVaryings)
+			{
+				ast.declareVariable(var.type, var.varName, Ast::FullVariableDesc::Trait_StageInVarying);
+			}
 
-		// Declare the output varying of the HLSL.
-		ast.declareVariable(TypeDesc(Type_vec4f), "vertex_output", Ast::FullVariableDesc::Trait_StageOutVarying);
+			// Output varyings.
+			// [TODO] Reconcider to declare these values as local variable in main.
+			for(const auto& var : ast.stageOutputVaryings)
+			{
+				ast.declareVariable(var.type, var.varName, Ast::FullVariableDesc::Trait_StageOutVarying);
+			}
+
+			// Declare the output varying of the HLSL.
+			ast.declareVariable(TypeDesc(Type_vec4f), "vertex_output", Ast::FullVariableDesc::Trait_StageOutVarying);
 		
 
-		// Declare the global unifroms
-		for(const auto& unif : ast.uniforms)
-		{
-			ast.declareVariable(unif.type, unif.varName);
+			// Declare the global unifroms
+			for(const auto& unif : ast.uniforms)
+			{
+				ast.declareVariable(unif.type, unif.varName);
+			}
 		}
 
-		// Declare everything else.
-		ast.program->Declare(&ast);
-		
-		// Deduce a type for every expression that was matched by bison.
-		for(auto n : ast.deductionQueue) n->DeduceType(&ast);
-
-		std::string code;
-
-		// Before anytinhg declare the globals uniform vertex attibs ect.
-
-		// GLSL vertex attributes input and output varyings...
+		// GENERATE the declaration code for the attrib varyings for GLSL
 		if(ast.OutLangIs(OL_GLSL))
 		{
+			// GLSL vertex attributes input and output varyings...
+
+			// Keep in mind that in GLSL there are no sematics. So for vertex attributes
+			// we are going to output the semantic rater than the variable name.
 			for(const auto& var : ast.vertexAttribs)
 			{
-				code += "attribute " + var.type.GetTypeAsString(lang) + " " + var.varName + ";";
+				code += "attribute " + var.type.GetTypeAsString(lang) + " " + var.semantic + ";";
 			}
 
 			for(const auto& var : ast.stageInputVaryings)
@@ -886,7 +894,7 @@ std::string GenerateCode(const LangSettings& lang, const char* code)
 			}
 		}
 
-		// Uniforms...
+		// GENERATE the declaration code for uniforms for both GLSL and HLSL
 		for(const auto& unif : ast.uniforms)
 		{
 			code += "uniform " + unif.type.GetTypeAsString(lang) + " " + unif.varName + ";";
@@ -900,6 +908,12 @@ std::string GenerateCode(const LangSettings& lang, const char* code)
 				}
 			}
 		}
+
+		// Declare everything else.
+		ast.program->Declare(&ast);
+		
+		// Deduce a type for every expression that was matched by bison.
+		for(auto n : ast.deductionQueue) n->DeduceType(&ast);
 
 		// Finally genrate the code form the AST treee.
 		code += ast.program->GenerateCode(&ast);

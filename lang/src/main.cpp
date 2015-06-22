@@ -89,12 +89,14 @@ void main() {
 	int x = lerp(0.3, 0.0, 1.0);
 	uv = 2;
 	if(x>0){
+		v = normalize(v*0.5);
 		v = -(world * -v.xxxy * +(getm() * v));
 		vec3f a_pos =  v;
 		v = a_pos;
 	}
 	else if(x<0) x = 10;
 	vertex_output = v;
+	v = takeSample(diffuseTex, uv) * world;
 
 	a_pos = m * lerp(0.3, 5.0, 10.0) * vec4f(0.0);
 	m * mix(0.3, vec4f(0), vec4f(1.0));

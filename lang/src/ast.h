@@ -203,25 +203,16 @@ public :
 };
 
 struct Ast
-{
-	inline Node* add(Node* node) {
+{	
+	template<typename T, typename... Args>
+	T* push(Args... args) {
+		T* node = new T(args...);
 		nodes.push_back(node);
 		return node;
 	}
 
-	template<typename T>
-	inline T* add() {
-		nodes.push_back(new T);
-		return (T*)nodes.back();
-	}
-	
-	template<typename T, typename... Args>
-	T* push(Args... args) {
-		T* node = new T(args...);
-		add(node);
-		return node;
-	}
-
+	// During declaration pass, these are used in order to 
+	// set change the current scope for defining and searching for variables.
 	void declPushScope() {
 		static int scopeIndex;
 		char srtScope[32];
@@ -240,11 +231,12 @@ struct Ast
 	}
 
 	// Adds a node. to the deduction queue.
-	void addDeduct(Node* expr)
-	{
+	// This is in order to traverse only the nodes that need type deduction.
+	void addDeduct(Node* expr) {
 		deductionQueue.push_back(expr);
 	}
 
+	// A fully defined variable description.
 	struct FullVariableDesc {
 
 		FullVariableDesc() = default;
@@ -262,6 +254,7 @@ struct Ast
 		TypeDesc type;
 		VarTrait trait;
 
+		// Used for stage specific variables.
 		const char* hlslSemantic = nullptr;
 		const char* glslVarName = nullptr;
 	};
@@ -271,23 +264,24 @@ struct Ast
 		TypeDesc retType;
 	};
 
-	// Declares a variable at the current scope.
+	// Declares a variable at the current scope
 	const FullVariableDesc* declareVariable(const TypeDesc& td, const std::string& name,  VarTrait trait = VarTrait_Regular);
 	void declareFunction(const TypeDesc& returnType, const std::string& name);
 	
+	// Thorws ParseExcept if missing. 
 	const FullVariableDesc* findVarInCurrentScope(const std::string& name);
 	const FullFuncionDesc& findFuncDecl(const std::string& name);
 
-	Node* program = nullptr;
+	Node* program = nullptr; // The root node.
 	std::vector<Node*> nodes;
 
-	std::vector<VertexAttribs> vertexAttribs;
+	std::vector<VertexAttribs> vertexAttribs; // Vertex shader vertex attributes.
 	std::vector<Varyings> stageInputVaryings; // aka. input varyings
 	std::vector<Varyings> stageOutputVaryings; // aka. output varyings
 	std::vector<Uniforms> uniforms;
 
-	std::vector<std::string> scope;
-	std::list<FullVariableDesc> declaredVariables; // yep a list, becase we need the pointers.
+	std::vector<std::string> scope; // A elper stack variables used to stack the scope ducing declaration pass.
+	std::list<FullVariableDesc> declaredVariables; // yep a list, becase we need the pointers to be solid.
 	std::vector<FullFuncionDesc> declaredFunctions;
 
 	std::vector<Node*> deductionQueue;
@@ -297,12 +291,13 @@ struct Ast
 	// or something with SV_* semantic.
 	std::vector<const Ast::FullVariableDesc*> keywordVariablesMentioned;
 
+	// Cached output language settings.
 	LangSettings lang;
 	bool OutLangIs(OutputLanguage ol) const { return lang.outputLanguage == ol; }
 };
 
 //-------------------------------------------------------------------------
-//
+// Expressions.
 //-------------------------------------------------------------------------
 struct Ident : public Node
 {
@@ -335,11 +330,6 @@ struct ExprMemberAccess : public Node
 
 	TypeDesc resolvedType; 
 };
-
-
-//---------------------------------------------------------------------------------
-// Expressions
-//---------------------------------------------------------------------------------
 
 // Binary expression of kind: a ? b
 struct ExprBin : public Node
@@ -511,6 +501,10 @@ struct VarDecl : public Node
 	std::vector<std::string> ident;
 	std::vector<Node*> expr;
 };
+
+//---------------------------------------------------------------------------------
+//
+//---------------------------------------------------------------------------------
 
 struct FnDeclArgVarDecl : public Node
 {

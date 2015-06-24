@@ -38,6 +38,10 @@ std::string TypeDesc::GetLangTypeName(const Type type)
 	if(type == Type_void) return "void";
 	if(type == Type_bool) return "bool";
 	if(type == Type_int) return "int";
+	if(type == Type_vec2i) return "vec2i";
+	if(type == Type_vec3i) return "vec3i";
+	if(type == Type_vec4i) return "vec4i";
+	if(type == Type_mat4f) return "mat4f";
 	if(type == Type_float) return "float";
 	if(type == Type_vec2f) return "vec2f";
 	if(type == Type_vec3f) return "vec3f";
@@ -56,7 +60,12 @@ TypeDesc TypeDesc::GetMemberType(const TypeDesc& parent, const std::string& memb
 		|| (parent.GetBuiltInType() == Type_vec3f) 
 		|| (parent.GetBuiltInType() == Type_vec4f);
 
-	if(isFloatVectorType)
+	const bool isIntVectorType = 
+			(parent.GetBuiltInType() == Type_vec2i) 
+		|| (parent.GetBuiltInType() == Type_vec3i) 
+		|| (parent.GetBuiltInType() == Type_vec4i);
+
+	if(isFloatVectorType || isIntVectorType)
 	{
 		// Check if this is a swizzle.
 		if(member.size() <= 4)
@@ -67,10 +76,20 @@ TypeDesc TypeDesc::GetMemberType(const TypeDesc& parent, const std::string& memb
 				}
 			}
 
-			if(member.size() == 1) return TypeDesc(Type_float);
-			if(member.size() == 2) return TypeDesc(Type_vec2f);
-			if(member.size() == 3) return TypeDesc(Type_vec3f);
-			if(member.size() == 4) return TypeDesc(Type_vec4f);
+			if(isFloatVectorType)
+			{
+				if(member.size() == 1) return TypeDesc(Type_float);
+				if(member.size() == 2) return TypeDesc(Type_vec2f);
+				if(member.size() == 3) return TypeDesc(Type_vec3f);
+				if(member.size() == 4) return TypeDesc(Type_vec4f);
+			}
+			else
+			{
+				if(member.size() == 1) return TypeDesc(Type_int);
+				if(member.size() == 2) return TypeDesc(Type_vec2i);
+				if(member.size() == 3) return TypeDesc(Type_vec3i);
+				if(member.size() == 4) return TypeDesc(Type_vec4i);
+			}
 		}
 	}
 
@@ -507,6 +526,30 @@ TypeDesc FuncCall::Internal_DeduceType(Ast* ast)
 		if(args[1]->DeduceType(ast) != args[2]->DeduceType(ast)) throw ParseExcept("lerp mixed arguments type");
 
 		resolvedType = args[1]->DeduceType(ast);
+	}
+
+	if(fnName == "dot")
+	{
+		if(args.size() != 2) throw ParseExcept("dot must be called with exactly one argument.");
+
+		const TypeDesc& td0 = args[0]->DeduceType(ast);
+		const TypeDesc& td1 = args[1]->DeduceType(ast);
+
+		if(td0 != td1) throw ParseExcept("dot called with mixed arguments."); 
+
+		if(td0 == Type_vec2f || td0 == Type_vec3f || td0 == Type_vec4f) resolvedType = Type_float;
+		else throw ParseExcept("dot called with unknown argument type");
+	}
+
+	if(fnName == "cross")
+	{
+		const TypeDesc& td0 = args[0]->DeduceType(ast);
+		const TypeDesc& td1 = args[1]->DeduceType(ast);
+
+		if(td0 != Type_vec3f) throw ParseExcept("cross is avaiabled only for vec3f class."); 
+		if(td0 != td1) throw ParseExcept("cross called with mixed arguments."); 
+
+		resolvedType = Type_vec3f;
 	}
 
 	if(fnName == "normalize")

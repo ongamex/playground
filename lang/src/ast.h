@@ -44,13 +44,19 @@ enum Type
 
 	Type_void,
 	Type_bool,
+
 	Type_int,
-		
+	Type_vec2i,
+	Type_vec3i,
+	Type_vec4i,
+
 	Type_float,
 	Type_vec2f,
 	Type_vec3f,
 	Type_vec4f,
+
 	Type_mat4f,
+
 	Type_Texture2D,
 
 	Type_BuiltInTypeEnd, // Just a marker, pointing right after the last built in type.

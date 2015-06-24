@@ -104,6 +104,10 @@ void main() {
 	cs_PixelNDC = 5;
 	a_pos = m * lerp(0.3, 5.0, 10.0) * vec4f(0.0);
 	m * mix(0.3, vec4f(0), vec4f(1.0));
+
+	vec3f a,b;
+	v = cross(a, b);
+	dot(a,a);
 }
 
 )";

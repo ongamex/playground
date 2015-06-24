@@ -43,6 +43,7 @@ bool parseExpression(const std::string& inp);
 %left LE '<' GE '>'
 %left '+' '-'
 %left '*' '/'
+%left '[' ']'
 %left '.'
 
 %nonassoc NONASSOC_UNARY
@@ -158,7 +159,8 @@ vardecl_var_list :
 	
 	// The actual variable declaration
 vardecl :
-		IDENT vardecl_var_list	{ $2->As<VarDecl>().type = TypeDesc($1); $$ = $2; }
+			IDENT vardecl_var_list	{ $2->As<VarDecl>().type = TypeDesc($1); $$ = $2; }
+		|	IDENT '[' NUM_INT ']' vardecl_var_list { $5->As<VarDecl>().type = TypeDesc($1, $3); $$ = $5; }
 	;
 	
 	//-------------------------------------------------
@@ -200,6 +202,7 @@ stmt_list :
 expr : expr_base { $$ = $1; ast->addDeduct($1); }
 expr_base :
 		'(' expr_base ')'			    	{ $2->inParens = true; $$ = $2; }
+	|	expr_base '[' expr_base ']'			{ $$ = ast->push<ExprIndexing>($1, $3); } // shift-reduce don't know why...
 	|	expr_base '.' IDENT					{ $$ = ast->push<ExprMemberAccess>($1, $3); }
 	|	IDENT					        	{ $$ = ast->push<Ident>($1); }
 	|	expr_base OR expr_base			    { $$ = ast->push<ExprBin>(EBT_Or, $1, $3); }

@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <vector>
+#include <list>
 #include <string>
 #include <exception>
 
@@ -57,6 +58,19 @@ enum Type
 	Type_UserDefined, // A user defined class.
 };
 
+enum VarTrait
+{
+	VarTrait_Regular, // Just a regual variable.
+	VarTrait_VertexAttribute, // A vertex attribute.
+	VarTrait_StageInVarying, // A varying variable.
+	VarTrait_StageOutVarying, // A varying variable.
+
+	// Stage specific input/output variables.
+	// There may not be needed as they are similar to VarTrait_Stage*Varying
+	VarTrait_StageSpecificInput,
+	VarTrait_StageSpecificOutput,
+};
+
 struct TypeDesc
 {
 public :
@@ -72,8 +86,12 @@ public :
 	
 public :
 
-	TypeDesc(Type type = Type_Undeduced) : m_type(type) {}
-	explicit TypeDesc(std::string strType);
+	TypeDesc(Type type = Type_Undeduced, int arraySize = 0) : m_type(type), m_arraySize(arraySize) {}
+	explicit TypeDesc(std::string strType, int arraySize = 0);
+
+	bool IsArray() const { return m_arraySize > 0; }
+	int GetArraySize() const { return m_arraySize; }
+	void SetArraySize(int arraySize) { m_arraySize = arraySize; }
 
 	bool IsVectorType() const { return IsVectorType(GetBuiltInType()); }
 	bool operator==(const Type type) const { return type == m_type; }
@@ -86,12 +104,13 @@ public :
 	bool operator!=(const TypeDesc& other) const { return !(*this == other); }
 	static TypeDesc GetMemberType(const TypeDesc& parent, const std::string& member);
 	std::string GetTypeAsString(const LangSettings& lang) const ;
+	
 	Type GetBuiltInType() const { return m_type; }
-
 private : 
 
-	Type m_type;
+	Type m_type = Type_Undeduced;
 	std::string m_strType;
+	int m_arraySize = 0; // 0 means that this is not an array.
 };
 
 std::string GenerateCode(const LangSettings& lang, const char* code);
@@ -222,17 +241,23 @@ struct Ast
 
 	struct FullVariableDesc {
 
-		enum Trait
-		{
-			Trait_Regular, // Just a regual variable.
-			Trait_VertexAttribute, // A vertex attribute.
-			Trait_StageInVarying, // A varying variable.
-			Trait_StageOutVarying, // A varying variable.
-		};
+		FullVariableDesc() = default;
+		FullVariableDesc(
+			std::string fullName,
+			TypeDesc type,
+			VarTrait trait,
+			const char* hlslSemantic = nullptr,
+			const char* glslVarName = nullptr)
+		:
+			fullName(fullName), type(type), trait(trait), hlslSemantic(hlslSemantic), glslVarName(glslVarName)
+		{}
 
 		std::string fullName;
 		TypeDesc type;
-		Trait trait;
+		VarTrait trait;
+
+		const char* hlslSemantic = nullptr;
+		const char* glslVarName = nullptr;
 	};
 
 	struct FullFuncionDesc {
@@ -241,10 +266,10 @@ struct Ast
 	};
 
 	// Declares a variable at the current scope.
-	FullVariableDesc declareVariable(const TypeDesc& td, const std::string& name,  FullVariableDesc::Trait trait = FullVariableDesc::Trait_Regular);
+	const FullVariableDesc* declareVariable(const TypeDesc& td, const std::string& name,  VarTrait trait = VarTrait_Regular);
 	void declareFunction(const TypeDesc& returnType, const std::string& name);
 	
-	const FullVariableDesc& findVarInCurrentScope(const std::string& name);
+	const FullVariableDesc* findVarInCurrentScope(const std::string& name);
 	const FullFuncionDesc& findFuncDecl(const std::string& name);
 
 	Node* program = nullptr;
@@ -256,10 +281,15 @@ struct Ast
 	std::vector<Uniforms> uniforms;
 
 	std::vector<std::string> scope;
-	std::vector<FullVariableDesc> declaredVariables;
+	std::list<FullVariableDesc> declaredVariables; // yep a list, becase we need the pointers.
 	std::vector<FullFuncionDesc> declaredFunctions;
 
 	std::vector<Node*> deductionQueue;
+
+	// A list of reserved variable that where mentioned in the program.
+	// These vaules are basically replicas to gl_*(gl_Position for instance)
+	// or something with SV_* semantic.
+	std::vector<const Ast::FullVariableDesc*> keywordVariablesMentioned;
 
 	LangSettings lang;
 	bool OutLangIs(OutputLanguage ol) const { return lang.outputLanguage == ol; }
@@ -280,7 +310,7 @@ struct Ident : public Node
 	TypeDesc Internal_DeduceType(Ast* ast) override;
 
 	std::string identifier;
-	Ast::FullVariableDesc resolvedFvd;
+	const Ast::FullVariableDesc* resolvedFvd = nullptr;
 };
 
 struct ExprMemberAccess : public Node
@@ -324,6 +354,22 @@ struct ExprBin : public Node
 	TypeDesc resolvedType;
 };
 
+struct ExprIndexing : public Node
+{
+	ExprIndexing() = default;
+	ExprIndexing(Node* expr, Node* idxExpr) : 
+		expr(expr), idxExpr(idxExpr)
+	{}
+
+	std::string Internal_GenerateCode(Ast* ast) override;
+	void Internal_Declare(Ast* ast) override;
+	TypeDesc Internal_DeduceType(Ast* ast) override;
+
+	Node* expr; // what we are indexing
+	Node* idxExpr; // the index itself
+
+	TypeDesc resolvedType;
+};
 
 struct FuncCall : public Node
 {

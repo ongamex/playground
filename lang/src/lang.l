@@ -12,6 +12,7 @@ void yyerror (yyscan_t yyscanner, char const *msg);
 %}
 
 %%
+"//".*[\n]											;
 \"(\\.|[^"])*\"		{ 
 						// remove the heading and trailing "
 						yylval->str_val = std::string(yytext+1); yylval->str_val.pop_back(); 
@@ -29,7 +30,7 @@ void yyerror (yyscan_t yyscanner, char const *msg);
 "uniform"												return UNIFORM;
 "native_code"											return NATIVE_CODE;
 "return"												return RETURN;
-[_a-zA-Z][_a-zA-z0-9]*									{ yylval->str_val = std::string(yytext); return IDENT; }
+[A-Za-z_][A-Za-z_0-9]* 									{ yylval->str_val = std::string(yytext); return IDENT; }
 [0-9][0-9]*(\.[0-9]+)([eE][0-9][0-9]*)?					{ yylval->float_val = atof(yytext); return NUM_FLOAT; }
 [0-9][0-9]*												{ yylval->int_val = atoi(yytext); return NUM_INT; }
 "&&"													return AND;
@@ -38,7 +39,7 @@ void yyerror (yyscan_t yyscanner, char const *msg);
 ">="													return GE;
 "=="													return EQUALS;
 "!="													return NOTEQUALS;
-[-()<>=+*/;{},.:] 										return *yytext;
+[-()<>=+*/;{},.:\[\]] 									return *yytext;
 %%
 
 int yywrap(yyscan_t yyscanner)

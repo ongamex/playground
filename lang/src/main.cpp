@@ -84,20 +84,24 @@ in mat4f world;
 mat4f getm() { return; }
 
 void main() {
-	mat4f m;
+
+	vec3f[10] yyyy, uyuyu;
+
+	mat4f m; //
 	vec4f v = vec4f(5);
 	int x = lerp(0.3, 0.0, 1.0);
-	uv = 2;
+	uv = 2.0 + yyyy[5].y*3.0;
 	if(x>0){
 		v = normalize(v*0.5);
 		v = -(world * -v.xxxy * +(getm() * v));
-		vec3f a_pos =  v;
+		vec3f a_pos = v;
 		v = a_pos;
+		uv = 2;
 	}
 	else if(x<0) x = 10;
-	vertex_output = v;
+	cs_VertexOut = v;
 	v = takeSample(diffuseTex, uv) * world;
-
+	cs_PixelNDC = 5;
 	a_pos = m * lerp(0.3, 5.0, 10.0) * vec4f(0.0);
 	m * mix(0.3, vec4f(0), vec4f(1.0));
 }

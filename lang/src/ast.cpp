@@ -6,6 +6,9 @@
 
 namespace
 {
+	// HLSL shader result is returned as a structure from the main function.
+	// These is the name of the strcture and the name of the vartiable that WILL
+	// be declared in the main function.
 	const std::string HLSL_ShaderResultStruct = "SGE_SHADER_RESULT";
 	const std::string HLSL_ShaderResultVar = "sge_shader_result";
 }
@@ -13,9 +16,10 @@ namespace
 //-----------------------------------------------------------------------
 //TypeDesc
 //-----------------------------------------------------------------------
-TypeDesc::TypeDesc(std::string strType)
+TypeDesc::TypeDesc(std::string strType, int arraySize)
 {
 	m_strType = strType;
+	m_arraySize = arraySize;
 
 	if(strType == "void") m_type = Type_void;
 	else if(strType == "bool") m_type = Type_bool;
@@ -63,6 +67,7 @@ TypeDesc TypeDesc::GetMemberType(const TypeDesc& parent, const std::string& memb
 				}
 			}
 
+			if(member.size() == 1) return TypeDesc(Type_float);
 			if(member.size() == 2) return TypeDesc(Type_vec2f);
 			if(member.size() == 3) return TypeDesc(Type_vec3f);
 			if(member.size() == 4) return TypeDesc(Type_vec4f);
@@ -94,7 +99,7 @@ std::string TypeDesc::GetTypeAsString(const LangSettings& lang) const
 //-----------------------------------------------------------------------
 // Ast
 //-----------------------------------------------------------------------
-Ast::FullVariableDesc Ast::declareVariable(const TypeDesc& td, const std::string& name, FullVariableDesc::Trait trait)
+const Ast::FullVariableDesc* Ast::declareVariable(const TypeDesc& td, const std::string& name, VarTrait trait)
 {
 	FullVariableDesc fvd;
 
@@ -104,23 +109,21 @@ Ast::FullVariableDesc Ast::declareVariable(const TypeDesc& td, const std::string
 	fvd.type = td;
 	fvd.trait = trait;
 
+	// Proove that there isn't a variable with the same name already defined.
 	std::find_if(begin(declaredVariables), end(declaredVariables), [&fvd, &name](FullVariableDesc v) {
 		const bool equal = fvd.fullName == v.fullName;
-
-		if(equal) {
-			throw ParseExcept("Variable with name '" + name + "' is already defined!");
-		}
-
+		if(equal) throw ParseExcept("Variable with name '" + name + "' is already defined!");
 		return equal;
 	});
 
 	declaredVariables.push_back(fvd);
 
-	return fvd;
+	return &declaredVariables.back();
 }
 
-const Ast::FullVariableDesc& Ast::findVarInCurrentScope(const std::string& name)
+const Ast::FullVariableDesc* Ast::findVarInCurrentScope(const std::string& name)
 {
+	// Search through all declared variables.
 	int depth = scope.size();
 	std::string fullName;
 
@@ -130,9 +133,23 @@ const Ast::FullVariableDesc& Ast::findVarInCurrentScope(const std::string& name)
 		for(int t = 0; t < depth; ++t) fullName+= scope[t] + "::";
 		fullName += name;
 
-		for(auto& v : declaredVariables)
+		for(Ast::FullVariableDesc& v : declaredVariables)
 		{
-			if(v.fullName == fullName) return v;
+			if(v.fullName == fullName) {
+
+				// Check if this is a "keyword variable"/
+				// Mark the variable as "mantioned" meaning that this variable need a special declaration in the output code(usually(maybe only) stage specific variable).
+				
+				const bool isKeywordVar = v.trait == VarTrait_StageSpecificInput || v.trait == VarTrait_StageSpecificOutput;
+			
+				if(isKeywordVar) {
+					const bool varFound = 
+						end(keywordVariablesMentioned) == std::find(begin(keywordVariablesMentioned), end(keywordVariablesMentioned), &v);
+					if(varFound) keywordVariablesMentioned.push_back(&v);
+				}
+
+				return &v;
+			}
 		}
 
 		depth--;
@@ -166,42 +183,59 @@ void Node::Declare(Ast* ast)
 	if(inBlock) ast->declPopScope();
 }
 
-
 //-----------------------------------------------------------------------
 //
 //-----------------------------------------------------------------------
 std::string Ident::Internal_GenerateCode(Ast* ast)
 {
-	const bool hlsl = ast->OutLangIs(OL_HLSL);
-	const bool glsl = ast->OutLangIs(OL_GLSL);
-
-	if(hlsl && resolvedFvd.trait == Ast::FullVariableDesc::Trait_StageOutVarying)
+	// Check if this is a keyword variable.
+	if(ast->OutLangIs(OL_HLSL))
 	{
-		return HLSL_ShaderResultVar + "." + identifier;
-	}
-
-	if(glsl && resolvedFvd.trait == Ast::FullVariableDesc::Trait_StageOutVarying)
-	{
-		if(identifier == "vertex_output") { return "gl_Position"; }
-	}
-
-	// Vertex attribute. For GLSL use the semantic name instead of the actual variable name.
-	if(glsl && resolvedFvd.trait == Ast::FullVariableDesc::Trait_VertexAttribute)
-	{
-		for(const auto& attr : ast->vertexAttribs) {
-			if(attr.varName == identifier) return attr.semantic;
+		// Stage specifics outputs and varyings
+		if(resolvedFvd->trait == VarTrait_StageOutVarying || resolvedFvd->trait == VarTrait_StageSpecificOutput)
+		{
+			return HLSL_ShaderResultVar + "." + identifier;
 		}
 
-		throw ParseExcept("Attribute '" + identifier + "\' not found!");
+		if(resolvedFvd->trait == VarTrait_StageSpecificInput)
+		{
+			return identifier;
+		}
 	}
 
-	// Just a regular variable I suppose.
+	if(ast->OutLangIs(OL_GLSL))
+	{
+		//
+		if(resolvedFvd->trait == VarTrait_StageSpecificOutput || resolvedFvd->trait == VarTrait_StageSpecificInput)
+		{
+			return resolvedFvd->glslVarName;
+		}
+
+		// Output varyings.
+		if(resolvedFvd->trait == VarTrait_StageOutVarying)
+		{
+			return identifier;
+		}
+
+		// Vertex attributes.... For GLSL use the semantic name instead of the actual variable name.
+		if(resolvedFvd->trait == VarTrait_VertexAttribute)
+		{
+			for(const auto& attr : ast->vertexAttribs) {
+				if(attr.varName == identifier) return attr.semantic;
+			}
+
+			throw ParseExcept("Attribute '" + identifier + "\' not found!");
+		}
+	}
+
+	// Just a regular variable or something that exactly matches the name of the identifier.
 	return identifier;
 	
 }
 
 void Ident::Internal_Declare(Ast* ast)
 {
+	// [TODO] This is just a mistake...
 	// Deduce the type during the declaration. This is esier becase we already know the current scope.
 	// The correct solution would be to cache the current scope and deduce the type into the "type deduction" pass.
 	resolvedFvd = ast->findVarInCurrentScope(identifier);
@@ -209,7 +243,7 @@ void Ident::Internal_Declare(Ast* ast)
 
 TypeDesc Ident::Internal_DeduceType(Ast* ast)
 {
-	return resolvedFvd.type;
+	return resolvedFvd->type;
 }
 
 //-----------------------------------------------------------------------
@@ -361,6 +395,31 @@ TypeDesc ExprBin::Internal_DeduceType(Ast* ast)
 
 	if(resolvedType == Type_Undeduced) throw("ExprBin type deduction failed");
 
+	return resolvedType;
+}
+
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
+std::string ExprIndexing::Internal_GenerateCode(Ast* ast)
+{
+	return expr->GenerateCode(ast) + '[' + idxExpr->GenerateCode(ast) + ']';
+}
+void ExprIndexing::Internal_Declare(Ast* ast)
+{
+	expr->Declare(ast);
+	idxExpr->Declare(ast);
+}
+
+TypeDesc ExprIndexing::Internal_DeduceType(Ast* ast)
+{
+	if(resolvedType != Type_Undeduced) return resolvedType;
+
+	TypeDesc exprType = expr->DeduceType(ast);
+	if(exprType.IsArray() == false) throw ParseExcept("[] Indexing works only on arrays!");
+
+	resolvedType = exprType;
+	resolvedType.SetArraySize(0);
 	return resolvedType;
 }
 
@@ -550,6 +609,8 @@ std::string StmtIf::Internal_GenerateCode(Ast* ast)
 
 void StmtIf::Internal_Declare(Ast* ast)
 {
+	expr->Declare(ast);
+
 	if(trueStmt)
 	{
 		ast->declPushScope();
@@ -578,6 +639,8 @@ std::string StmtWhile::Internal_GenerateCode(Ast* ast)
 
 void StmtWhile::Internal_Declare(Ast* ast)
 {
+	if(expr) expr->Declare(ast);
+
 	if(bodyStmt)
 	{
 		ast->declPushScope();
@@ -609,6 +672,8 @@ void StmtFor::Internal_Declare(Ast* ast)
 		vardecl->Declare(ast);
 		ast->declPopScope();
 	}
+
+	if(boolExpr) boolExpr->Declare(ast);
 
 	if(stmt) 
 	{
@@ -658,13 +723,34 @@ void StmtList::Internal_Declare(Ast* ast)
 //------------------------------------------------------------------------------
 std::string VarDecl::Internal_GenerateCode(Ast* ast)
 {
-	std::string retval = type.GetTypeAsString(ast->lang) + " ";
+	std::string retval;
 
-	for(int t = 0; t < ident.size(); ++t)
+
+	if(type.IsArray() == false)
 	{
-		retval += ident[t];
-		if(expr[t]) retval += "=" + expr[t]->GenerateCode(ast);
-		if(t < ident.size() - 1) retval += ',';
+		// Non-Arrays
+		retval += type.GetTypeAsString(ast->lang) + " ";
+
+		for(int t = 0; t < ident.size(); ++t)
+		{
+			retval += ident[t];
+			if(expr[t]) retval += "=" + expr[t]->GenerateCode(ast);
+			if(t < ident.size() - 1) retval += ',';
+		}
+	}
+	else
+	{
+		// Arrays
+		char arraysSuffux[32] = { 0 };
+		sprintf(arraysSuffux, "[%d]", type.GetArraySize() );
+		const std::string typeAsString = type.GetTypeAsString(ast->lang) + " ";
+
+		for(int t = 0; t < ident.size(); ++t)
+		{
+			retval += typeAsString + ident[t] + arraysSuffux;
+			if(expr[t]) retval += "=" + expr[t]->GenerateCode(ast);
+			if(t < ident.size() - 1) retval += ';';
+		}
 	}
 
 	return retval;
@@ -675,6 +761,7 @@ void VarDecl::Internal_Declare(Ast* ast)
 	for(int t = 0; t < ident.size(); ++t)
 	{
 		ast->declareVariable(type, ident[t]);
+		if(expr[t]) expr[t]->Declare(ast);
 	}
 }
 
@@ -734,13 +821,16 @@ std::string FuncDecl::GenerateMainFuncHLSL(Ast* ast)
 	// Usually this is just output varyings + stage specific output.
 	{
 		retval += "struct " + HLSL_ShaderResultStruct + " {";
+
+		// The user specified output varyings.
 		for(const auto& var : ast->stageOutputVaryings) {
 			retval += var.type.GetTypeAsString(ast->lang) + " " + var.varName + " : " + var.varName + ";";
 		}
 
-		// Add the stage specific output.
-		if(ast->lang.shaderType == ST_Vertex) {
-			retval += "float3 vertex_output : SV_Position;";
+		// Stage specific output with SV_*.
+		for(const auto& var : ast->keywordVariablesMentioned) {
+			if(var->trait == VarTrait_StageSpecificOutput)
+			retval += var->type.GetTypeAsString(ast->lang) + " " + var->fullName + " : " + var->hlslSemantic + ";";
 		}
 
 		retval += "};";
@@ -758,6 +848,12 @@ std::string FuncDecl::GenerateMainFuncHLSL(Ast* ast)
 		// Input varyings.
 		for(auto& var : ast->stageInputVaryings) {
 			retval += var.type.GetTypeAsString(ast->lang) + " " + var.varName + " : " + var.varName + ",";
+		}
+
+		// Stage specific input with SV_*.
+		for(const auto& var : ast->keywordVariablesMentioned) {
+			if(var->trait == VarTrait_StageSpecificInput)
+			retval += var->type.GetTypeAsString(ast->lang) + " " + var->fullName + " : " + var->hlslSemantic + ",";
 		}
 
 		// Pop the last comma.
@@ -869,29 +965,39 @@ std::string GenerateCode(const LangSettings& lang, const char* pCode)
 
 		// Declare the vertex attributes, io varyings, and uniforms
 		{
+			// Declare all the keyword variables...
+			// The languages uses the glsl-style of returning/obtaining stage specific variables.
+			// There variables are always implicitly defined, of course we aren't always define them in the output language.
+			// There is a "mentioned" list sotred in the Ast that holds a list of mentioned variables.
+			{
+				// Vertex shader outputs
+				ast.declaredVariables.push_back(Ast::FullVariableDesc("cs_VertexOut", TypeDesc(Type_vec4f), VarTrait_StageSpecificOutput, "SV_Position", "gl_Vertex"));
+
+				// Pixel shader output
+				ast.declaredVariables.push_back(Ast::FullVariableDesc("cs_PixelOut", TypeDesc(Type_vec4f), VarTrait_StageSpecificOutput,  "SV_Target", "gl_FragColor" ));
+			
+				ast.declaredVariables.push_back(Ast::FullVariableDesc("cs_PixelNDC", TypeDesc(Type_vec4f), VarTrait_StageSpecificInput,  "SV_Position", "gl_FragCoord" ));
+			};
+
 			// Vertex Attributes.
 			// [TODO] Reconcider to declare these values as local variable in main.
 			for(const auto& var : ast.vertexAttribs) {
-				ast.declareVariable(var.type, var.varName, Ast::FullVariableDesc::Trait_VertexAttribute);
+				ast.declareVariable(var.type, var.varName, VarTrait_VertexAttribute);
 			}
 
 			// Input varyings. 
 			// [TODO] Reconcider to declare these values as local variable in main.
 			for(const auto& var : ast.stageInputVaryings)
 			{
-				ast.declareVariable(var.type, var.varName, Ast::FullVariableDesc::Trait_StageInVarying);
+				ast.declareVariable(var.type, var.varName, VarTrait_StageInVarying);
 			}
 
 			// Output varyings.
 			// [TODO] Reconcider to declare these values as local variable in main.
 			for(const auto& var : ast.stageOutputVaryings)
 			{
-				ast.declareVariable(var.type, var.varName, Ast::FullVariableDesc::Trait_StageOutVarying);
+				ast.declareVariable(var.type, var.varName, VarTrait_StageOutVarying);
 			}
-
-			// Declare the output varying of the HLSL.
-			ast.declareVariable(TypeDesc(Type_vec4f), "vertex_output", Ast::FullVariableDesc::Trait_StageOutVarying);
-		
 
 			// Declare the global unifroms
 			for(const auto& unif : ast.uniforms)
@@ -899,6 +1005,14 @@ std::string GenerateCode(const LangSettings& lang, const char* pCode)
 				ast.declareVariable(unif.type, unif.varName);
 			}
 		}
+
+		// Declare everything else.
+		ast.program->Declare(&ast);
+
+		// Deduce a type for every expression that was matched by bison.
+		for(auto n : ast.deductionQueue) n->DeduceType(&ast);
+
+		// CODE GENERATION....
 
 		// GENERATE the declaration code for the attrib varyings for GLSL
 		if(ast.OutLangIs(OL_GLSL))
@@ -939,12 +1053,6 @@ std::string GenerateCode(const LangSettings& lang, const char* pCode)
 				}
 			}
 		}
-
-		// Declare everything else.
-		ast.program->Declare(&ast);
-		
-		// Deduce a type for every expression that was matched by bison.
-		for(auto n : ast.deductionQueue) n->DeduceType(&ast);
 
 		// Finally genrate the code form the AST treee.
 		code += ast.program->GenerateCode(&ast);

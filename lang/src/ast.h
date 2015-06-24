@@ -100,10 +100,16 @@ public :
 	void SetArraySize(int arraySize) { m_arraySize = arraySize; }
 
 	bool IsVectorType() const { return IsVectorType(GetBuiltInType()); }
-	bool operator==(const Type type) const { return type == m_type; }
-	bool operator!=(const Type type) const { return type != m_type; }
+	bool operator==(const Type type) const { return type == m_type && (m_arraySize == 0); }
+	bool operator!=(const Type type) const { return type != m_type && (m_arraySize == 0); }
 
 	bool operator==(const TypeDesc& other) const {
+
+		// Check if both types are arrays or not.
+		const bool areSameArraywise = !!(GetArraySize()) ^ !!(other.GetArraySize());
+		if(areSameArraywise) return false;
+
+		// Check if the data type is the same.
 		if(m_type != Type_UserDefined) return m_type == other.m_type;
 		return m_strType == other.m_strType;
 	}
@@ -202,6 +208,7 @@ public :
 	bool hasSemicolon = false; // True if the statement is of kind <--->; 
 };
 
+//[TODO] Add a destructor currently the nodes are leaking.
 struct Ast
 {	
 	template<typename T, typename... Args>

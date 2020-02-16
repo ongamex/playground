@@ -6,18 +6,35 @@ TypeRegister &getTypeRegister() {
   return s;
 }
 
-void *MemberDesc::castOwner(void *owner) const {
+void *MemberDesc::castOwner(void *object) const {
   // TODO: Optimize this! It should be doable without a search.
   int numMembersInOwner = this->owner->computeTotalNumMembers();
   for (int t = 0; t < numMembersInOwner; ++t) {
-    MemberAccessor memAcc = this->owner->getMember(owner, t);
-    if (memAcc.md == this) {
+    MemberAccessor memAcc = this->owner->getMember(object, t);
+    if (memAcc.md->name == this->name) {
       return memAcc.owner;
     }
   }
 
   assert(false && "Searching for a member that should exists!");
   return nullptr;
+}
+
+void TypeRegister::obtainTypesFrom(TypeRegister &other) {
+  for (const auto& otherPair : other.types) {
+    const TypeDesc *const existingTypeDescInThis = find(otherPair.first);
+    if (existingTypeDescInThis == nullptr) {
+      // A new type is found. Copy it's descriptor.
+      types[otherPair.first] = otherPair.second;
+    } else {
+      // Just some asserts that do not prove 100% compatibility between the
+      // externally registered type and the pre-existing one in our type
+      // register but it is some way to find mismatches.
+      // TODO: Add a better check for mismatched types.
+      assert(existingTypeDescInThis->typeName == otherPair.second.typeName);
+      assert(existingTypeDescInThis->typeId == otherPair.second.typeId);
+    }
+  }
 }
 
 const TypeDesc *TypeRegister::find(const TypeId id) const {
@@ -30,8 +47,18 @@ const TypeDesc *TypeRegister::find(const TypeId id) const {
   return nullptr;
 }
 
+const TypeDesc *TypeRegister::findByName(const char *const name) const {
+  for (const auto& pair : types) {
+    if (pair.second.typeName == name) {
+      return &pair.second;
+    }
+  }
+
+  return nullptr;
+}
+
 int TypeDesc::computeTotalNumMembers() const {
-  int memberCnt = members.size();
+  int memberCnt = int(members.size());
 
   TypeRegister &r = getTypeRegister();
   for (int t = 0; t < int(parentClasses.size()); ++t) {
@@ -170,13 +197,13 @@ void TypeRegister::callRegisterTypesFunctions() {
 //---------------------------------------------------------------------
 //
 //---------------------------------------------------------------------
-bool MemberChain::add(const MemberDesc *mfd, int idx) {
-  if (!mfd) {
+bool MemberChain::add(const MemberDesc *md, int idx) {
+  if (!md) {
     assert(false);
     return false;
   }
 
-  knots.emplace_back(Knot(mfd, idx));
+  knots.emplace_back(Knot(md, idx));
   return true;
 }
 
@@ -220,7 +247,7 @@ DefineTypeId(float, 00'00'00'0002);
 DefineTypeId(std::string, 00'00'00'0003);
 
 ReflRegisterBlock(Basic Types) {
-  ReflDefineType(int);
-  ReflDefineType(float);
-  ReflDefineType(std::string);
+  ReflAddType(int);
+  ReflAddType(float);
+  ReflAddType(std::string);
 }

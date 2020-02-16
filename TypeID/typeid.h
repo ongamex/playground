@@ -37,8 +37,9 @@ struct TypeId {
 /// yy'mm'dd'nnnn where nnnn is the number of type registered on this day.
 template <typename T> TypeId sgeTypeIdFn();
 
-/// Don't use in header definition it will bloat the code cpps with useless stuff.
-//#define DefineTypeIdInline(T, _id)                                             \
+/// Don't use in header definition it will bloat the code cpps with useless
+/// stuff.
+//#define DefineTypeIdInline(T, _id) \
 //  template <> inline TypeId sgeTypeIdFn<T>() { return TypeId(_id); }
 
 #define DefineTypeId(T, _id)                                                   \
@@ -168,6 +169,8 @@ public:
   };
 
 public:
+  /// The id of the plugin (exe/dll) that registered that type.
+  int providingPluginId;
   TypeId typeId;
   std::string typeName;
   std::vector<ParentClassData> parentClasses;
@@ -270,16 +273,16 @@ public:
     member.getter = [](void *object, void *dest) -> void {
       int byteOffsetDesc = sge_offsetof(memberPtr);
       char *memberLoc = (char *)(object) + byteOffsetDesc;
-      const T &memberRef = *(const T *)memberLoc;
-      T &output = *(T *)dest;
+      const M &memberRef = *(const M *)memberLoc;
+      M &output = *(M *)dest;
       output = memberRef;
     };
 
     member.setter = [](void *object, const void *src) -> void {
       int byteOffsetDesc = sge_offsetof(memberPtr);
       char *memberLoc = (char *)(object) + byteOffsetDesc;
-      T &memberRef = *(T *)memberLoc;
-      const T &input = *(const T *)src;
+      M &memberRef = *(M *)memberLoc;
+      const M &input = *(const M *)src;
       memberRef = input;
     };
 
@@ -352,12 +355,44 @@ public:
 struct TypeRegister {
   friend int addFunctionThatDefinesTypesToTypeRegister(void (*fnPtr)());
 
+  TypeRegister() = default;
+  TypeRegister(const TypeRegister &) = delete;
+  TypeRegister &operator=(const TypeRegister &) = delete;
+
+  /// Drains all the missing types coming form the other type register.
+  void obtainTypesFrom(TypeRegister &other);
+
   template <class T> TypeDesc &addType(const char *const typeName) {
+    if (getPluginID() == 0) {
+      // Check if a plugin id was set, this id is needed when a plugin is
+      // reloaded while the engine is running, old types form this plugins need
+      // to be deleted and then added again once the plugin is again loaded.
+      // this pluginID is used to identify the types that need to be deleted.
+
+      // Return a dummy typedesc that isn't going to be actually used,
+      // we are just making the compiler happy.
+      static TypeDesc tdDummyForFaultyPluginIds;
+      tdDummyForFaultyPluginIds = TypeDesc();
+      assert(false && "Please set some id for the current exe/dll before "
+                      "registering any types! see setPluginID(). This type "
+                      "won't get regstered");
+      return tdDummyForFaultyPluginIds;
+    }
+
     TypeId id = sgeTypeIdFn<T>();
 
+    // Check if the type is already registered.
     if (types.count(id) != 0) {
-      assert(false && "A type with the same id has already been registered!");
+      // If the type has already been registered by another pluging, do not warn
+      // as these types are usually int,float,string and so on.
+      // TODO: Add a check that bypasses these types and checks for everything
+      // else.
+      if (types[id].providingPluginId == getPluginID()) {
+        assert(false && "A type with the same id has already been registered!");
+      }
 
+      // Return a dummy typedesc that isn't going to be actually used,
+      // we are just making the compiler happy.
       static TypeDesc tdDummyForFaultyTypeIds;
       tdDummyForFaultyTypeIds = TypeDesc();
       return tdDummyForFaultyTypeIds;
@@ -365,6 +400,7 @@ struct TypeRegister {
 
     TypeDesc &td = types[id];
 
+    td.providingPluginId = getPluginID();
     td.typeId = id;
     td.typeName = typeName;
 
@@ -429,16 +465,18 @@ struct TypeRegister {
     return td;
   }
 
-  TypeRegister() = default;
-  TypeRegister(const TypeRegister &) = delete;
-  TypeRegister &operator=(const TypeRegister &) = delete;
-
   const TypeDesc *find(const TypeId id) const;
+  const TypeDesc *findByName(const char *const) const;
 
   void callRegisterTypesFunctions();
   const std::map<TypeId, TypeDesc> &getAllTypes() const { return types; }
 
+  int getPluginID() const { return pluginID; }
+  void setPluginID(int id) { pluginID = id; }
+
 private:
+  int pluginID = 0;
+
   std::set<void (*)()> functionsToBeCalledThatWillRegisterTypes;
   std::map<TypeId, TypeDesc> types;
 };
@@ -450,7 +488,7 @@ int addFunctionThatDefinesTypesToTypeRegister(void (*fnPtr)());
 ///-------------------------------------------------------------------------------------------
 
 /// Starts a definition of a type.
-#define ReflDefineType(T) getTypeRegister().addType<T>(#T)
+#define ReflAddType(T) getTypeRegister().addType<T>(#T)
 
 #define ReflInherits(T, TParent) .inherits<T, TParent>()
 
@@ -480,9 +518,9 @@ int addFunctionThatDefinesTypesToTypeRegister(void (*fnPtr)());
 /// TypeRegister::callRegisterTypesFunctions() is called.
 ///-------------------------------------------------------------------------------------------
 #define ReflRegisterBlock(comment)                                             \
-  ReflBeginRegisterBlock_Imp(SGE_ANONYMOUS(_SGE_REFL_ANON__FUNC))
+  ReflRegisterBlock_Impl(SGE_ANONYMOUS(_SGE_REFL_ANON__FUNC))
 
-#define ReflBeginRegisterBlock_Imp(fnName)                                     \
+#define ReflRegisterBlock_Impl(fnName)                                         \
   static void fnName();                                                        \
   static int SGE_ANONYMOUS(fnNameRegisterVariable) =                           \
       addFunctionThatDefinesTypesToTypeRegister(&fnName);                      \
@@ -501,7 +539,8 @@ struct MemberChain {
         : md(md), arrayIndex(arrayIndex) {}
 
     const MemberDesc *md = nullptr;
-    int arrayIndex = -1;
+    int arrayIndex =
+        -1; // -1 identifies that indexing is going to be actually used.
   };
 
 public:

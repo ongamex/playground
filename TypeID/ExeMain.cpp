@@ -1,6 +1,11 @@
 
-#include "CommonTypes.h"
+#include "slib.h"
 #include <iostream>
+
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+
+#include "PluginInterface.h"
 
 enum TestEnum {
   te_0,
@@ -32,21 +37,24 @@ DefineTypeId(EvenBiggerContainer, 10'00'00'0004);
 DefineTypeId(TestEnum, 10'00'00'0005);
 
 ReflRegisterBlock("blah") {
-  ReflDefineType(TestEnum) ReflEnumVal(te_0, "te_0") ReflEnumVal(te_1, "te_1")
+  ReflAddType(TestEnum) ReflEnumVal(te_0, "te_0") ReflEnumVal(te_1, "te_1")
       ReflEnumVal(te_2, "te_2");
 
-  ReflDefineType(Container) ReflMemberRaw(Container, "v", v);
+  ReflAddType(Container) ReflMemberRaw(Container, "v", v);
 
-  ReflDefineType(std::vector<Storage>);
-  ReflDefineType(Storage) ReflMemberRaw(Storage, "z", z)
+  ReflAddType(std::vector<Storage>);
+  ReflAddType(Storage) ReflMemberRaw(Storage, "z", z)
       ReflMember(Storage, TestEnum, "a", getA, setA);
 
-  ReflDefineType(EvenBiggerContainer)
+  ReflAddType(EvenBiggerContainer)
       ReflMemberRaw(EvenBiggerContainer, "container", container);
 }
 
 int main() {
 
+  SLibType s;
+  // s.foo();
+  getTypeRegister().setPluginID(1);
   getTypeRegister().callRegisterTypesFunctions();
 
   auto &r = getTypeRegister();
@@ -67,10 +75,27 @@ int main() {
   TestEnum value = ma.get<TestEnum>().value();
   ma.set(te_2);
 
+  HMODULE dllhmod = LoadLibraryA("dlib.dll");
+  AllocatePluginInterfaceFnPtr allocInterfaceFnPtr = (AllocatePluginInterfaceFnPtr)GetProcAddress(dllhmod, "allocateInterface");
+
+  IPluginInterface* plugin = allocInterfaceFnPtr();
+  plugin->onLoad();
+  plugin->updateTypes(getTypeRegister());
+  getTypeRegister().obtainTypesFrom(plugin->getPluginTypeRegister());
+
+
+  const TypeDesc* tdX = getTypeRegister().findByName("X");
+  void* xVar = tdX->newFn();
+  chain.clear();
+  chain.add(tdX->find1stMember("b"));
+  int dllValue = chain.follow(xVar).get<int>().value();
+  chain.follow(xVar).set(5000);
+  dllValue = chain.follow(xVar).get<int>().value();
+
   for (auto tdItr : r.getAllTypes()) {
     auto td = tdItr.second;
     int numMembers = td.computeTotalNumMembers();
-    printf("%s has these members:\n", td.getTypeName());
+    printf("%s %d has these members:\n", td.getTypeName(), td.typeId.id);
     for (int t = 0; t < numMembers; ++t) {
       MemberAccessor m = td.getMember(nullptr, t);
       printf("\t%s %s[", r.find(m.md->typeId)->getTypeName(),

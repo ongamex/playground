@@ -7,3 +7,5 @@ add_library(dlib SHARED dlib.cpp typeid.h typeid.cpp)
 
 add_executable(Exe ExeMain.cpp PluginInterface.h)
 target_link_libraries(Exe TypeID slib)
+
+add_dependencies(Exe dlib)

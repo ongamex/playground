@@ -191,8 +191,9 @@ MemberAccessor MemberChain::follow(void* root) const {
 //---------------------------------------------------------------------
 // DefineTypeId(TypeId, 00'00'00'0001); todo: make TypeId not a typedef
 DefineTypeId(int, 00'00'00'0001);
-DefineTypeId(float, 00'00'00'0002);
-DefineTypeId(std::string, 00'00'00'0003);
+DefineTypeId(unsigned int, 00'00'00'0002);
+DefineTypeId(float, 00'00'00'0003);
+DefineTypeId(std::string, 00'00'00'0004);
 
 ReflRegisterBlock(Basic Types) {
 	ReflAddType(int);

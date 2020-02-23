@@ -2,6 +2,30 @@
 
 #include "PluginInterface.h"
 
+
+
+//-------------------------------------------
+//
+//-------------------------------------------
+struct A {
+	virtual ~A() {
+	}
+	int a = 100;
+	virtual const int& getA() const = 0;
+	virtual void setA(const int& value) {
+		a = value;
+	}
+};
+
+struct B {
+	virtual ~B() {
+	}
+	int b = 200;
+	virtual const int& getB() const = 0;
+	virtual void setB(const int& value) = 0;
+};
+
+
 //---------------------------------------------------------------------
 //
 //---------------------------------------------------------------------
@@ -74,8 +98,14 @@ class PluginInterface final : public IPluginInterface {
 	}
 };
 
+#ifdef _WIN32
+#define SgeExport __declspec(dllexport)
+#else
+#define SgeExport __attribute__((visibility("default")))
+#endif
+
 extern "C" {
-__declspec(dllexport) IPluginInterface* allocateInterface() {
+SgeExport IPluginInterface* allocateInterface() {
 	return new PluginInterface();
 }
 }

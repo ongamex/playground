@@ -2,12 +2,37 @@
 #include "slib.h"
 #include <iostream>
 
+#ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+#else
+#include <dlfcn.h>
+struct DLLHelper {
+	void* handle = nullptr;
+
+	DLLHelper(const char* const dllPath = nullptr) {
+		if (dllPath) {
+			open(dllPath);
+		}
+	}
+
+	bool open(const char* const dllPath) {
+		handle = dlopen(dllPath, RTLD_NOW);
+		if(handle == nullptr) {
+			printf(dlerror());
+		}
+		return handle != nullptr;
+	}
+
+	void* getAddr(const char* const symbol) const {
+		return handle ? dlsym(handle, symbol) : nullptr;
+	}
+};
+#endif
 
 #include "PluginInterface.h"
 
-enum TestEnum {
+enum TestEnum : int {
 	te_0,
 	te_1,
 	te_2,
@@ -51,7 +76,7 @@ ReflRegisterBlock("blah") {
 	ReflAddType(EvenBiggerContainer) ReflMemberRaw(EvenBiggerContainer, "container", container);
 }
 
-int main() {
+int main(int argc, char* argv[]) {
 	SLibType s;
 	// s.foo();
 	getTypeRegister().setPluginID(1);
@@ -74,8 +99,8 @@ int main() {
 	TestEnum value = ma.get<TestEnum>().value();
 	ma.set(te_2);
 
-	HMODULE dllhmod = LoadLibraryA("dlib.dll");
-	AllocatePluginInterfaceFnPtr allocInterfaceFnPtr = (AllocatePluginInterfaceFnPtr)GetProcAddress(dllhmod, "allocateInterface");
+	DLLHelper dll("/home/kossio/typeid_cmake/libdlib.so");
+	AllocatePluginInterfaceFnPtr allocInterfaceFnPtr = (AllocatePluginInterfaceFnPtr)dll.getAddr("allocateInterface");
 
 	IPluginInterface* plugin = allocInterfaceFnPtr();
 	plugin->onLoad();
@@ -90,7 +115,7 @@ int main() {
 		void* xVarCasted = nullptr;
 		tdX->getMemberInternal(xVar, t, md, &xVarCasted, nullptr);
 		int v;
-		md->callGetter(xVarCasted, &v);
+		md->callGetter(xVar, &v);
 		int breakPointHelper0 = 100;
 	}
 
@@ -103,7 +128,7 @@ int main() {
 	for (auto tdItr : r.getAllTypes()) {
 		auto td = tdItr.second;
 		int numMembers = td.computeTotalNumMembers();
-		printf("%s %d has these members:\n", td.getTypeName(), td.typeId.id);
+		printf("%s %d\n", td.getTypeName(), td.typeId.id);
 		for (int t = 0; t < numMembers; ++t) {
 			MemberAccessor m = td.getMember(nullptr, t);
 			printf("\t%s %s[", r.find(m.md->typeId)->getTypeName(), m.md->name.c_str());

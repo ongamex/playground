@@ -12,24 +12,3 @@ struct IPluginInterface {
 };
 
 typedef IPluginInterface* (*AllocatePluginInterfaceFnPtr)();
-
-//-------------------------------------------
-//
-//-------------------------------------------
-struct A {
-	virtual ~A() {
-	}
-	int a = 100;
-	virtual const int& getA() const = 0;
-	virtual void setA(const int& value) {
-		a = value;
-	}
-};
-
-struct B {
-	virtual ~B() {
-	}
-	int b = 200;
-	virtual const int& getB() const = 0;
-	virtual void setB(const int& value) = 0;
-};

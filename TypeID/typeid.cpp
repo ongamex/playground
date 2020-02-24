@@ -89,14 +89,53 @@ TypeDesc& TypeDesc::addEnumMember(int enumMember, const char* const name) {
 	return *this;
 }
 
+void TypeDesc::addMemberInternal(MemberDesc member) {
+	// Caution:
+	// Check if there is already a member which has the same name.
+	// Usually this is perfectly fine and the type reflection system will work
+	// perfectly fine if a name is used for multiple members,
+	// however the serialization systems uses names as identifies,
+	// that is why we need unique names.
+	for (const MemberDesc& existingMember : members) {
+		if (existingMember.name == member.name) {
+			assert(false && "It is expected member names to be unique!");
+		}
+	}
+
+	members.emplace_back(std::move(member));
+}
+
+void TypeDesc::copyMembersFromParentClasses() {
+	for (int iParentClass = 0; iParentClass < int(parentClasses.size()); ++iParentClass) {
+		ParentTypeData& pd = parentClasses[iParentClass];
+		const TypeDesc* const tdParentClass = typeLib().find(pd.parentTypeId);
+
+		if (tdParentClass) {
+			for (const MemberDesc& md : tdParentClass->members) {
+				MemberDesc copiedMember = md;
+				copiedMember.owningTypeDesc = this;
+				copiedMember.castFromOwnerToCorretTypeChain.insert(copiedMember.castFromOwnerToCorretTypeChain.begin(), pd.castToParent);
+				members.emplace_back(std::move(copiedMember));
+			}
+		}
+	}
+}
+
 int addFunctionThatDefinesTypesToTypeLibrary(void (*fnPtr)()) {
 	typeLib().functionsToBeCalledThatWillRegisterTypes.push_back(fnPtr);
 	return 0;
 }
 
-void TypeLibrary::doRegisteration() {
+void TypeLibrary::performRegistration() {
 	for (auto& fn : functionsToBeCalledThatWillRegisterTypes) {
 		fn();
+	}
+
+	// Not that all types are registered, resolved all members that are coming form inerited types.
+	// We cannot do this in TypeDesc::inherits<T>() as the type that we are inheriting might not
+	// be registered yet.
+	for (auto& itr : this->types) {
+		itr.second.copyMembersFromParentClasses();
 	}
 }
 
@@ -122,6 +161,11 @@ void MemberChain::clear() {
 }
 
 MemberAccessor MemberChain::follow(void* root) const {
+	if (root == nullptr) {
+		assert(false);
+		return MemberAccessor();
+	}
+
 	void* outMemberOwner = nullptr;
 
 	void* prevMemberOwner = root;

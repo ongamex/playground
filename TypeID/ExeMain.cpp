@@ -100,7 +100,7 @@ int main(int argc, char* argv[]) {
 	SLibType s;
 	// s.foo();
 	typeLib().setPluginID(1);
-	typeLib().doRegisteration();
+	typeLib().performRegistration();
 
 	auto& r = typeLib();
 
@@ -139,7 +139,6 @@ int main(int argc, char* argv[]) {
 
 	for (int t = 0; t < tdX->numMembers(); ++t) {
 		const MemberDesc* md = tdX->getMember(t);
-		int v;
 		md->callSetter(xVar, &t);
 		int breakPointHelper0 = 100;
 	}

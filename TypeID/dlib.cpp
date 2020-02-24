@@ -90,7 +90,7 @@ class PluginInterface final : public IPluginInterface {
 
 	void updateTypes(TypeLibrary& somebodyElsesTypeRegister) final {
 		typeLib().obtainTypesFrom(somebodyElsesTypeRegister);
-		typeLib().doRegisteration();
+		typeLib().performRegistration();
 	}
 
 	TypeLibrary& getPluginTypeRegister() final {

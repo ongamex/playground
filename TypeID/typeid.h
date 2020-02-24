@@ -136,7 +136,17 @@ struct MemberDesc {
 	TypeId typeId;
 	std::string name;
 
-	int userLookUpNumber = 0;
+	MemberDesc(const TypeDesc* owningTypeDesc,
+	           TypeId typeId,
+	           const char* const nameCStr,
+	           void (*getter)(void* object, void* dest),
+	           void (*setter)(void* object, const void* src))
+	    : owningTypeDesc(owningTypeDesc)
+	    , typeId(typeId)
+	    , name(nameCStr)
+	    , getter(getter)
+	    , setter(setter) {
+	}
 
   private:
 	// An array storing all the necesary casts from the type described by owningTypeDesc
@@ -199,8 +209,8 @@ struct TypeDesc {
 	friend struct TypeLibrary;
 
   public:
-	struct ParentClassData {
-		TypeId parentClassId;
+	struct ParentTypeData {
+		TypeId parentTypeId;
 		void* (*castToParent)(void* object) = nullptr;
 	};
 
@@ -209,7 +219,7 @@ struct TypeDesc {
 	int providingPluginId;
 	TypeId typeId;
 	std::string typeName;
-	std::vector<ParentClassData> parentClasses;
+	std::vector<ParentTypeData> parentClasses;
 	std::vector<MemberDesc> members;
 
 	// Constructors, destructors and non-array allocation.
@@ -265,9 +275,9 @@ struct TypeDesc {
 	template <typename T, typename TParent>
 	TypeDesc& inherits() {
 		static_assert(std::is_base_of<TParent, T>::value, "T must inherit TParent");
-		ParentClassData pd;
+		ParentTypeData pd;
 
-		pd.parentClassId = sgeTypeIdFn<TParent>();
+		pd.parentTypeId = sgeTypeIdFn<TParent>();
 		pd.castToParent = [](void* object) -> void* {
 			T* const objTyped = reinterpret_cast<T*>(object);
 			TParent* const objAsParent = static_cast<TParent*>(objTyped);
@@ -276,16 +286,6 @@ struct TypeDesc {
 		};
 
 		parentClasses.push_back(pd);
-
-		const TypeDesc* const tdParentClass = typeLib().find(pd.parentClassId);
-
-		if (tdParentClass) {
-			for (const MemberDesc& md : tdParentClass->members) {
-				MemberDesc copiedMember = md;
-				copiedMember.castFromOwnerToCorretTypeChain.insert(copiedMember.castFromOwnerToCorretTypeChain.begin(), pd.castToParent);
-				members.emplace_back(std::move(copiedMember));
-			}
-		}
 
 		return *this;
 	}
@@ -296,7 +296,7 @@ struct TypeDesc {
 	/// This function will generates it own get() set() functions to be used.
 	template <typename T, typename M, M T::*memberPtr>
 	TypeDesc& addMemberRaw(const char* name) {
-		const auto getter = [](void* object, void* dest) -> void {
+		const auto getDataFn = [](void* object, void* dest) -> void {
 			int byteOffsetDesc = sge_offsetof(memberPtr);
 			char* memberLoc = (char*)(object) + byteOffsetDesc;
 			const M& memberRef = *(const M*)memberLoc;
@@ -304,7 +304,7 @@ struct TypeDesc {
 			output = memberRef;
 		};
 
-		const auto setter = [](void* object, const void* src) -> void {
+		const auto setDataFn = [](void* object, const void* src) -> void {
 			int byteOffsetDesc = sge_offsetof(memberPtr);
 			char* memberLoc = (char*)(object) + byteOffsetDesc;
 			M& memberRef = *(M*)memberLoc;
@@ -312,14 +312,7 @@ struct TypeDesc {
 			memberRef = input;
 		};
 
-		MemberDesc member;
-		member.owningTypeDesc = this;
-		member.name = name;
-		member.typeId = sgeTypeId(M);
-		member.getter = getter;
-		member.setter = setter;
-
-		members.emplace_back(std::move(member));
+		addMemberInternal(MemberDesc(this, sgeTypeId(M), name, getDataFn, setDataFn));
 		return *this;
 	}
 
@@ -329,14 +322,7 @@ struct TypeDesc {
 	TypeDesc& addMemberWithGetNoSetter(const char* name) {
 		auto getDataFn = [](void* object, void* dest) -> void { *((M*)(dest)) = (((T*)(object))->*getter)(); };
 
-		MemberDesc member;
-		member.owningTypeDesc = this;
-		member.name = name;
-		member.typeId = sgeTypeId(M);
-		member.getter = getDataFn;
-		member.setter = nullptr;
-
-		members.emplace_back(std::move(member));
+		addMemberInternal(MemberDesc(this, sgeTypeId(M), name, getDataFn, setDataFn));
 		return *this;
 	}
 
@@ -347,14 +333,7 @@ struct TypeDesc {
 		auto getDataFn = [](void* object, void* dest) -> void { *((M*)(dest)) = (((T*)(object))->*getter)(); };
 		auto setDataFn = [](void* object, const void* src) -> void { (((T*)(object))->*setter)(*((M*)(src))); };
 
-		MemberDesc member;
-		member.owningTypeDesc = this;
-		member.name = name;
-		member.typeId = sgeTypeIdFn<M>();
-		member.getter = getDataFn;
-		member.setter = setDataFn;
-
-		members.emplace_back(std::move(member));
+		addMemberInternal(MemberDesc(this, sgeTypeId(M), name, getDataFn, setDataFn));
 		return *this;
 	}
 
@@ -364,6 +343,11 @@ struct TypeDesc {
 	const char* const getTypeName() const {
 		return typeName.c_str();
 	}
+
+  private:
+	//
+	void addMemberInternal(MemberDesc member);
+	void copyMembersFromParentClasses();
 };
 
 ///-------------------------------------------------------------------------------------------
@@ -382,7 +366,7 @@ struct TypeLibrary {
 
 	/// This function initiates the registration of all types.
 	/// Once finished, the reflection system is ready to be used.
-	void doRegisteration();
+	void performRegistration();
 
 	/// Drains all the missing types coming form the other type register.
 	/// Used when multiple binaries need to keep track of the same types.
@@ -530,7 +514,7 @@ int addFunctionThatDefinesTypesToTypeLibrary(void (*fnPtr)());
 ///-------------------------------------------------------------------------------------------
 /// A set of macros that enable the user to declare reflection inside a header
 /// or a cpp file. The registration will happen when
-/// TypeLibrary::doRegisteration() is called.
+/// TypeLibrary::performRegistration() is called.
 ///-------------------------------------------------------------------------------------------
 #define ReflRegisterBlock(comment) ReflRegisterBlock_Impl(SGE_ANONYMOUS(_SGE_REFL_ANON__FUNC))
 
@@ -568,7 +552,10 @@ struct MemberChain {
 	void pop();
 	void clear();
 
-	MemberAccessor follow(void* root) const;
+	/// Follows the described chain and returns a properly casted pointer that can
+	/// be used to access the member and the MeberDesc of the resuting member.
+	/// @param[in] root a pointer to the object of type that hold the 1st specified member.
+	MemberAccessor follow(void* object) const;
 
   private:
 	std::vector<Knot> knots;

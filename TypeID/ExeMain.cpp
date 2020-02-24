@@ -5,6 +5,26 @@
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+
+struct DLLHelper {
+	HMODULE handle = 0;
+
+	DLLHelper(const char* const dllPath = nullptr) {
+		if (dllPath) {
+			open(dllPath);
+		}
+	}
+
+	bool open(const char* const dllPath) {
+		handle = LoadLibraryA(dllPath);
+		return handle != 0;
+	}
+
+	void* getAddr(const char* const symbol) const {
+		return handle ? GetProcAddress(handle, symbol) : nullptr;
+	}
+};
+
 #else
 #include <dlfcn.h>
 struct DLLHelper {
@@ -18,7 +38,7 @@ struct DLLHelper {
 
 	bool open(const char* const dllPath) {
 		handle = dlopen(dllPath, RTLD_NOW);
-		if(handle == nullptr) {
+		if (handle == nullptr) {
 			printf(dlerror());
 		}
 		return handle != nullptr;
@@ -79,10 +99,10 @@ ReflRegisterBlock("blah") {
 int main(int argc, char* argv[]) {
 	SLibType s;
 	// s.foo();
-	getTypeRegister().setPluginID(1);
-	getTypeRegister().callRegisterTypesFunctions();
+	typeLib().setPluginID(1);
+	typeLib().doRegisteration();
 
-	auto& r = getTypeRegister();
+	auto& r = typeLib();
 
 	EvenBiggerContainer c;
 
@@ -90,30 +110,42 @@ int main(int argc, char* argv[]) {
 	c.container.v[3].a = te_1;
 
 	MemberChain chain;
-	chain.add(r.find(sgeTypeId(EvenBiggerContainer))->findMember("container", TypeId()));
-	chain.add(r.find(sgeTypeId(Container))->findMember("v", TypeId()), 3);
-	chain.add(r.find(sgeTypeId(Storage))->findMember("a", TypeId()));
+	chain.add(r.find(sgeTypeId(EvenBiggerContainer))->find1stMember("container"));
+	chain.add(r.find(sgeTypeId(Container))->find1stMember("v"), 3);
+	chain.add(r.find(sgeTypeId(Storage))->find1stMember("a"));
 
 	MemberAccessor ma = chain.follow(&c);
 
 	TestEnum value = ma.get<TestEnum>().value();
 	ma.set(te_2);
 
-	DLLHelper dll("/home/kossio/typeid_cmake/libdlib.so");
+	DLLHelper dll("dlib.dll");
 	AllocatePluginInterfaceFnPtr allocInterfaceFnPtr = (AllocatePluginInterfaceFnPtr)dll.getAddr("allocateInterface");
 
 	IPluginInterface* plugin = allocInterfaceFnPtr();
 	plugin->onLoad();
-	plugin->updateTypes(getTypeRegister());
-	getTypeRegister().obtainTypesFrom(plugin->getPluginTypeRegister());
+	plugin->updateTypes(typeLib());
+	typeLib().obtainTypesFrom(plugin->getPluginTypeRegister());
 
-	const TypeDesc* tdX = getTypeRegister().findByName("X");
+	const TypeDesc* tdX = typeLib().findByName("X");
 	void* xVar = tdX->newFn();
 
-	for (int t = 0; t < tdX->computeTotalNumMembers(); ++t) {
-		const MemberDesc* md;
-		void* xVarCasted = nullptr;
-		tdX->getMemberInternal(xVar, t, md, &xVarCasted, nullptr);
+	for (int t = 0; t < tdX->numMembers(); ++t) {
+		const MemberDesc* md = tdX->getMember(t);
+		int v;
+		md->callGetter(xVar, &v);
+		int breakPointHelper0 = 100;
+	}
+
+	for (int t = 0; t < tdX->numMembers(); ++t) {
+		const MemberDesc* md = tdX->getMember(t);
+		int v;
+		md->callSetter(xVar, &t);
+		int breakPointHelper0 = 100;
+	}
+
+	for (int t = 0; t < tdX->numMembers(); ++t) {
+		const MemberDesc* md = tdX->getMember(t);
 		int v;
 		md->callGetter(xVar, &v);
 		int breakPointHelper0 = 100;
@@ -127,15 +159,15 @@ int main(int argc, char* argv[]) {
 
 	for (auto tdItr : r.getAllTypes()) {
 		auto td = tdItr.second;
-		int numMembers = td.computeTotalNumMembers();
+		int numMembers = td.numMembers();
 		printf("%s %d\n", td.getTypeName(), td.typeId.id);
 		for (int t = 0; t < numMembers; ++t) {
-			MemberAccessor m = td.getMember(nullptr, t);
-			printf("\t%s %s[", r.find(m.md->typeId)->getTypeName(), m.md->name.c_str());
-			if (m.md->canRead()) {
+			const MemberDesc* md = td.getMember(t);
+			printf("\t%s %s[", r.find(md->typeId)->getTypeName(), md->name.c_str());
+			if (md->canRead()) {
 				printf("gettable ");
 			}
-			if (m.md->canWrite()) {
+			if (md->canWrite()) {
 				printf("settable");
 			}
 			printf("]\n");

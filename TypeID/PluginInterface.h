@@ -7,8 +7,8 @@ struct IPluginInterface {
 	}
 
 	virtual void onLoad() = 0;
-	virtual void updateTypes(TypeRegister& somebodyElsesTypeRegister) = 0;
-	virtual TypeRegister& getPluginTypeRegister() = 0;
+	virtual void updateTypes(TypeLibrary& somebodyElsesTypeRegister) = 0;
+	virtual TypeLibrary& getPluginTypeRegister() = 0;
 };
 
 typedef IPluginInterface* (*AllocatePluginInterfaceFnPtr)();

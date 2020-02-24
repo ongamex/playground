@@ -1,8 +1,8 @@
 #include "typeid.h"
 #include <assert.h>
 
-TypeRegister& getTypeRegister() {
-	static TypeRegister s;
+TypeLibrary& typeLib() {
+	static TypeLibrary s;
 	return s;
 }
 
@@ -16,7 +16,7 @@ void* MemberDesc::castOwner(void* object) const {
 	return object;
 }
 
-void TypeRegister::obtainTypesFrom(TypeRegister& other) {
+void TypeLibrary::obtainTypesFrom(TypeLibrary& other) {
 	for (const auto& otherPair : other.types) {
 		const TypeDesc* const existingTypeDescInThis = find(otherPair.first);
 		if (existingTypeDescInThis == nullptr) {
@@ -33,7 +33,7 @@ void TypeRegister::obtainTypesFrom(TypeRegister& other) {
 	}
 }
 
-const TypeDesc* TypeRegister::find(const TypeId id) const {
+const TypeDesc* TypeLibrary::find(const TypeId id) const {
 	auto itr = types.find(id);
 	if (itr != types.end()) {
 		return &itr->second;
@@ -42,7 +42,7 @@ const TypeDesc* TypeRegister::find(const TypeId id) const {
 	return nullptr;
 }
 
-const TypeDesc* TypeRegister::findByName(const char* const name) const {
+const TypeDesc* TypeLibrary::findByName(const char* const name) const {
 	for (const auto& pair : types) {
 		if (pair.second.typeName == name) {
 			return &pair.second;
@@ -52,67 +52,27 @@ const TypeDesc* TypeRegister::findByName(const char* const name) const {
 	return nullptr;
 }
 
-int TypeDesc::computeTotalNumMembers() const {
-	int memberCnt = int(members.size());
-	return memberCnt;
-}
-
-void TypeDesc::getMemberInternal(void* rootObject,
-                                 const int iMember,
-                                 const MemberDesc*& outMemberDesc,
-                                 void** outRootCasted,
-                                 TypeId* const outClassProvidingMember) const {
-	outMemberDesc = nullptr;
-	if (outRootCasted) {
-		*outRootCasted = nullptr;
+//-------------------------------------------------------------------------------------
+// TypeDesc definition.
+//-------------------------------------------------------------------------------------
+const MemberDesc* TypeDesc::getMember(const int iMember) const {
+	if (iMember >= 0 && iMember < numMembers()) {
+		return &members[iMember];
 	}
 
-	/// Check if the member is not inherited, if so then no need to do the loop
-	/// below.
-	if (iMember < int(members.size())) {
-		outMemberDesc = &members[iMember];
-		if (outRootCasted) {
-			*outRootCasted = outMemberDesc->castOwner(rootObject);
-		}
-		if (outClassProvidingMember) {
-			*outClassProvidingMember = this->typeId;
-		}
-		return;
-	}
-
-	return;
+	assert(false);
+	return nullptr;
 }
 
 const MemberDesc* TypeDesc::find1stMember(const char* const name) const {
-	const MemberDesc* result = nullptr;
-	int numMembers = computeTotalNumMembers();
-	for (int t = 0; t < numMembers; ++t) {
-		getMemberInternal(nullptr, t, result, nullptr);
-		if (result->name == name) {
-			return result;
+	for (int t = 0; t < numMembers(); ++t) {
+		if (members[t].name == name) {
+			return &members[t];
 		}
 	}
 
 	assert(false && "Searching for a member that doesn't exists!");
-	return result;
-}
-
-const MemberDesc* TypeDesc::findMember(const char* const name, TypeId typeProvidingMember) const {
-	if (typeProvidingMember.isNull()) {
-		typeProvidingMember = this->typeId;
-	}
-	const MemberDesc* result = nullptr;
-	int numMembers = computeTotalNumMembers();
-	for (int t = 0; t < numMembers; ++t) {
-		TypeId typeProvidingThisMember;
-		getMemberInternal(nullptr, t, result, nullptr, &typeProvidingThisMember);
-		if (typeProvidingMember == typeProvidingThisMember && result->name == name) {
-			return result;
-		}
-	}
-
-	assert(false && "Searching for a member that doesn't exists!");
-	return result;
+	return nullptr;
 }
 
 TypeDesc& TypeDesc::addEnumMember(int enumMember, const char* const name) {
@@ -129,12 +89,12 @@ TypeDesc& TypeDesc::addEnumMember(int enumMember, const char* const name) {
 	return *this;
 }
 
-int addFunctionThatDefinesTypesToTypeRegister(void (*fnPtr)()) {
-	getTypeRegister().functionsToBeCalledThatWillRegisterTypes.insert(fnPtr);
+int addFunctionThatDefinesTypesToTypeLibrary(void (*fnPtr)()) {
+	typeLib().functionsToBeCalledThatWillRegisterTypes.push_back(fnPtr);
 	return 0;
 }
 
-void TypeRegister::callRegisterTypesFunctions() {
+void TypeLibrary::doRegisteration() {
 	for (auto& fn : functionsToBeCalledThatWillRegisterTypes) {
 		fn();
 	}
@@ -171,7 +131,7 @@ MemberAccessor MemberChain::follow(void* root) const {
 			prevMemberOwner = root;
 		} else {
 			outMemberOwner = knot.md->castOwner(prevMemberOwner);
-			const TypeDesc* knotVectorTypeDesc = getTypeRegister().find(knot.md->typeId);
+			const TypeDesc* knotVectorTypeDesc = typeLib().find(knot.md->typeId);
 			if (knotVectorTypeDesc) {
 				outMemberOwner = knotVectorTypeDesc->stdVectorGetElement(outMemberOwner, knot.arrayIndex);
 				prevMemberOwner = outMemberOwner;
@@ -187,7 +147,7 @@ MemberAccessor MemberChain::follow(void* root) const {
 }
 
 //---------------------------------------------------------------------
-//
+// TypeIds of commonly used types.
 //---------------------------------------------------------------------
 // DefineTypeId(TypeId, 00'00'00'0001); todo: make TypeId not a typedef
 DefineTypeId(int, 00'00'00'0001);

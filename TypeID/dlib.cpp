@@ -85,16 +85,16 @@ class PluginInterface final : public IPluginInterface {
 
 	virtual void onLoad() {
 		new DLLType();
-		getTypeRegister().setPluginID(1001);
+		typeLib().setPluginID(1001);
 	}
 
-	void updateTypes(TypeRegister& somebodyElsesTypeRegister) final {
-		getTypeRegister().obtainTypesFrom(somebodyElsesTypeRegister);
-		getTypeRegister().callRegisterTypesFunctions();
+	void updateTypes(TypeLibrary& somebodyElsesTypeRegister) final {
+		typeLib().obtainTypesFrom(somebodyElsesTypeRegister);
+		typeLib().doRegisteration();
 	}
 
-	TypeRegister& getPluginTypeRegister() final {
-		return getTypeRegister();
+	TypeLibrary& getPluginTypeRegister() final {
+		return typeLib();
 	}
 };
 

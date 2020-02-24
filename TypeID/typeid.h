@@ -1,12 +1,10 @@
 #pragma once
 
 #include <assert.h>
-#include <functional>
-#include <map>
 #include <optional>
-#include <set>
 #include <string>
 #include <type_traits>
+#include <unordered_map>
 #include <vector>
 
 #define SGE_CAT_IMPL(s1, s2) s1##s2
@@ -14,8 +12,6 @@
 #define SGE_ANONYMOUS(x) SGE_CAT(x, __COUNTER__)
 
 struct TypeId {
-	// Caution:
-	// a std::hash implmentation below! Find it if you add any members.
 	int id;
 
 	explicit TypeId(int const id = 0)
@@ -39,18 +35,30 @@ struct TypeId {
 	}
 };
 
+
+/// Definition of std::hash<TypeId>
+namespace std {
+template <>
+struct hash<TypeId> {
+	int operator()(const TypeId& k) const {
+		return k.id;
+	}
+};
+} // namespace std
+
+
 /// A funtion providing the type-id of each type.
 /// A function specialization for everytype that participates in the reflection
 /// must be provided. If you get linker errors it is because this function isn't
-/// defined for a type that is used in the reflection system. 0 is reserved for
-/// invalid id.
+/// defined for a type that is used in the reflection system.
+/// 0 is reserved for invalid id.
 ///
 /// A good nomenclature for assigning ids is:
 /// yy'mm'dd'nnnn where nnnn is the number of type registered on this day.
 template <typename T>
 TypeId sgeTypeIdFn();
 
-/// Don't use in header definition it will bloat the code cpps with useless
+/// Don't use in header definition it will bloat the cpps with useless
 /// stuff.
 //#define DefineTypeIdInline(T, _id) \
 //  template <> inline TypeId sgeTypeIdFn<T>() { return TypeId(_id); }
@@ -61,6 +69,7 @@ TypeId sgeTypeIdFn();
 		return TypeId(_id);   \
 	}
 
+/// A macros used to quckly obtain id for a particular type.
 #define sgeTypeId(T) sgeTypeIdFn<T>()
 
 //---------------------------------------------------
@@ -105,10 +114,12 @@ template <template <typename...> class Ref, typename... Args>
 struct is_specialization<Ref<Args...>, Ref> : std::true_type {};
 
 ///-------------------------------------------------------------------------------------------
-/// getTypeRegister() is a function used to access the global type register.
+///
 ///-------------------------------------------------------------------------------------------
-struct TypeRegister;
-TypeRegister& getTypeRegister();
+struct TypeLibrary;
+
+/// typeLib() is a function used to access the global type register for the current binary.
+TypeLibrary& typeLib();
 
 ///-------------------------------------------------------------------------------------------
 /// MemberDesc
@@ -121,12 +132,17 @@ struct TypeDesc;
 struct MemberDesc {
 	friend TypeDesc;
 
-	const TypeDesc* owner = nullptr;
+	const TypeDesc* owningTypeDesc = nullptr;
 	TypeId typeId;
 	std::string name;
 
+	int userLookUpNumber = 0;
+
   private:
+	// An array storing all the necesary casts from the type described by owningTypeDesc
+	// to the type that can correctly proivde the specified member.
 	std::vector<CastFn> castFromOwnerToCorretTypeChain;
+
 	void (*getter)(void* object, void* dest) = nullptr;
 	void (*setter)(void* object, const void* src) = nullptr;
 
@@ -138,72 +154,39 @@ struct MemberDesc {
 		return setter != nullptr;
 	}
 
-	/// Cast the specified pointer, to the correct type
-	/// that provides this member.
+	/// Cast the specified pointer, assumed to be of type described by owningType
+	/// to the correct type. that provides this member.
 	/// For example if the member is inherited owner != retval.
-	void* castOwner(void* ownerPtr) const;
+	void* castOwner(void* object) const;
 
-	void callGetter(void* ownerPtr, void* dest) const {
-		ownerPtr = castOwner(ownerPtr);
-		getter(ownerPtr, dest);
+	/// Invokes the specified getter assuming that the provided object
+	/// is of type described by owningType.
+	void callGetter(void* object, void* const dest) const {
+		assert(object && dest);
+		object = castOwner(object);
+		getter(object, dest);
 	}
 
-	void callSetter(void* ownerPtr, const void* src) const {
-		ownerPtr = castOwner(ownerPtr);
-		setter(ownerPtr, src);
+	/// Invokes the specified setter assuming that the provided object
+	/// is of type described by owningType.
+	void callSetter(void* object, const void* const src) const {
+		assert(object && src);
+		object = castOwner(object);
+		setter(object, src);
 	}
 
-	void callGetterNoCast(void* ownerPtr, void* dest) const {
-		getter(ownerPtr, dest);
+	/// Invokes the specified getter assuming that the provided objectCasted
+	/// is already casted to the correct type.
+	void callGetterNoCast(void* const objectCasted, void* const dest) const {
+		assert(objectCasted && dest);
+		getter(objectCasted, dest);
 	}
 
-	void callSetterNoCast(void* ownerPtr, const void* src) const {
-		setter(ownerPtr, src);
-	}
-};
-
-/// MemberAccessor provides a convinent and typesafe method for
-/// acessing values from a MemberDesc.
-struct MemberAccessor {
-	const MemberDesc* md;
-	void* owner;
-
-	MemberAccessor(const MemberDesc* const md = nullptr, void* const owner = nullptr)
-	    : md(md)
-	    , owner(owner) {
-	}
-
-	bool canRead() const {
-		bool result = owner != nullptr && md != nullptr && md->canRead();
-		return result;
-	}
-
-	bool canWrite() const {
-		bool result = owner != nullptr && md != nullptr && md->canWrite();
-		return result;
-	}
-
-	template <typename T>
-	std::optional<T> get() const {
-		if (canRead() && md->typeId == sgeTypeId(T)) {
-			T result;
-			md->callGetterNoCast(owner, &result);
-			return std::move(result);
-		}
-
-		assert(false);
-		return std::nullopt;
-	}
-
-	template <typename T>
-	bool set(const T& value) const {
-		if (canWrite() && sgeTypeId(T) == md->typeId) {
-			md->callSetterNoCast(owner, &value);
-			return true;
-		}
-
-		assert(false);
-		return false;
+	/// Invokes the specified setter assuming that the provided objectCasted
+	/// is already casted to the correct type.
+	void callSetterNoCast(void* const objectCasted, const void* const src) const {
+		assert(objectCasted && src);
+		setter(objectCasted, src);
 	}
 };
 
@@ -213,7 +196,7 @@ struct MemberAccessor {
 /// A structure holding the user-specified reflection data for a type.
 ///-------------------------------------------------------------------------------------------
 struct TypeDesc {
-	friend struct TypeRegister;
+	friend struct TypeLibrary;
 
   public:
 	struct ParentClassData {
@@ -222,7 +205,7 @@ struct TypeDesc {
 	};
 
   public:
-	/// The id of the plugin (exe/dll) that registered that type.
+	/// The id of the plugin (exe/dll/so) that registered that type.
 	int providingPluginId;
 	TypeId typeId;
 	std::string typeName;
@@ -243,7 +226,7 @@ struct TypeDesc {
 
 	// Enums
 	TypeId enumUnderlayingType;
-	std::map<int, std::string> enumValueToNameLUT;
+	std::unordered_map<int, std::string> enumValueToNameLUT;
 
 	// std::vector functions.
 	TypeId stdVectorUnderlayingType;
@@ -254,20 +237,11 @@ struct TypeDesc {
 	const void* (*stdVectorGetElementConst)(const void* vector, size_t index) = nullptr;
 
   public:
-	/// Computes the total number of members in the reflected type.
-	/// This includes the members type type has plus the total number in it's
-	/// parent classes.
-	int computeTotalNumMembers() const;
-
-	/// Retrieves the i-th member desc of the type. This includes the members
-	/// of the parent types.
-	/// 0-th member is the 1st reflected member of this type.
-	/// TODO: isn't it better if we put the inherited members 1st?
-	void getMemberInternal(void* rootObject,
-	                       const int iMember,
-	                       const MemberDesc*& outMemberDesc,
-	                       void** outRootCasted,
-	                       TypeId* const outClassProvidingMember = nullptr) const;
+	/// Retrieves the total number of members described, including the once inherited.
+	int numMembers() const {
+		int memberCnt = int(members.size());
+		return memberCnt;
+	}
 
 	/// Retrieves the i-th member desc of the type. This includes the members
 	/// of the parent types.
@@ -275,24 +249,15 @@ struct TypeDesc {
 	/// be cased to the correct type so member get/set functions could be called.
 	///                       ignored if nullptr.
 	/// @param[in] iMember the index of the member to be obtained. goes form 0 to
-	/// computeTotalNumMembers().
+	/// numMembers().
 	/// @param[out] outMemberDesc will contain the description of the requested
 	/// member.
 	/// @result rootObject casted to the correct type, enabling calling get/set to
 	/// be vaild.
-	MemberAccessor getMember(void* rootObject, const int iMember) const {
-		MemberAccessor result;
-		getMemberInternal(rootObject, iMember, result.md, &result.owner);
-		return result;
-	}
+	const MemberDesc* getMember(const int iMember) const;
 
 	/// Finds the 1st member with the specified name.
 	const MemberDesc* find1stMember(const char* const name) const;
-
-	// Searches for a member with the specified name,
-	// with is provided(existis withing that type) by typeProvidingMember.
-	// if Null then this type is assumed.
-	const MemberDesc* findMember(const char* const name, TypeId typeProvidingMember) const;
 
 	/// Marks that this type inherits the specified TParent class.
 	/// The declaration is statically checked with an assert, if the type
@@ -312,7 +277,7 @@ struct TypeDesc {
 
 		parentClasses.push_back(pd);
 
-		const TypeDesc* const tdParentClass = getTypeRegister().find(pd.parentClassId);
+		const TypeDesc* const tdParentClass = typeLib().find(pd.parentClassId);
 
 		if (tdParentClass) {
 			for (const MemberDesc& md : tdParentClass->members) {
@@ -327,15 +292,11 @@ struct TypeDesc {
 
 	/// Declares a direct member of this type, which is just a member-variable,
 	/// That doesn't have explicit get and set methods.
-	/// This function will generates it own get and set function to be used.
+	/// The member must be public.
+	/// This function will generates it own get() set() functions to be used.
 	template <typename T, typename M, M T::*memberPtr>
-	TypeDesc& addMember(const char* name) {
-		MemberDesc member;
-		member.owner = this;
-		member.name = name;
-		member.typeId = sgeTypeId(M);
-
-		member.getter = [](void* object, void* dest) -> void {
+	TypeDesc& addMemberRaw(const char* name) {
+		const auto getter = [](void* object, void* dest) -> void {
 			int byteOffsetDesc = sge_offsetof(memberPtr);
 			char* memberLoc = (char*)(object) + byteOffsetDesc;
 			const M& memberRef = *(const M*)memberLoc;
@@ -343,7 +304,7 @@ struct TypeDesc {
 			output = memberRef;
 		};
 
-		member.setter = [](void* object, const void* src) -> void {
+		const auto setter = [](void* object, const void* src) -> void {
 			int byteOffsetDesc = sge_offsetof(memberPtr);
 			char* memberLoc = (char*)(object) + byteOffsetDesc;
 			M& memberRef = *(M*)memberLoc;
@@ -351,27 +312,31 @@ struct TypeDesc {
 			memberRef = input;
 		};
 
-		members.emplace_back(member);
+		MemberDesc member;
+		member.owningTypeDesc = this;
+		member.name = name;
+		member.typeId = sgeTypeId(M);
+		member.getter = getter;
+		member.setter = setter;
 
+		members.emplace_back(std::move(member));
 		return *this;
 	}
 
 	/// Declares a direct member of this type
-	/// That is going to be acessed by the specified gettet, no setter available.
+	/// That is going to be acessed by the specified getter, no setter available.
 	template <typename T, typename M, const M& (T::*getter)() const>
 	TypeDesc& addMemberWithGetNoSetter(const char* name) {
-		MemberDesc member;
-		member.owner = this;
-		member.name = name;
-		member.typeId = sgeTypeId(M);
-
 		auto getDataFn = [](void* object, void* dest) -> void { *((M*)(dest)) = (((T*)(object))->*getter)(); };
 
+		MemberDesc member;
+		member.owningTypeDesc = this;
+		member.name = name;
+		member.typeId = sgeTypeId(M);
 		member.getter = getDataFn;
 		member.setter = nullptr;
 
-		members.emplace_back(member);
-
+		members.emplace_back(std::move(member));
 		return *this;
 	}
 
@@ -379,19 +344,17 @@ struct TypeDesc {
 	/// That is going to be acessed by the specified getter and setter functions.
 	template <typename T, typename M, const M& (T::*getter)() const, void (T::*setter)(const M&)>
 	TypeDesc& addMemberWithGetSet(const char* name) {
+		auto getDataFn = [](void* object, void* dest) -> void { *((M*)(dest)) = (((T*)(object))->*getter)(); };
+		auto setDataFn = [](void* object, const void* src) -> void { (((T*)(object))->*setter)(*((M*)(src))); };
+
 		MemberDesc member;
-		member.owner = this;
+		member.owningTypeDesc = this;
 		member.name = name;
 		member.typeId = sgeTypeIdFn<M>();
-
-		auto getDataFn = [](void* object, void* dest) -> void { *((M*)(dest)) = (((T*)(object))->*getter)(); };
-		auto setDataFn = [](void* object, const void* dest) -> void { (((T*)(object))->*setter)(*((M*)(dest))); };
-
 		member.getter = getDataFn;
 		member.setter = setDataFn;
 
-		members.emplace_back(member);
-
+		members.emplace_back(std::move(member));
 		return *this;
 	}
 
@@ -404,21 +367,26 @@ struct TypeDesc {
 };
 
 ///-------------------------------------------------------------------------------------------
-/// TypeRegister
+/// TypeLibrary
 ///
 /// A global strcture, storing all reflected types.
 /// TypeDesc and MemberDesc will refer to this global register and quering
 /// information about other types.
 ///-------------------------------------------------------------------------------------------
-struct TypeRegister {
-	friend int addFunctionThatDefinesTypesToTypeRegister(void (*fnPtr)());
+struct TypeLibrary {
+	friend int addFunctionThatDefinesTypesToTypeLibrary(void (*fnPtr)());
 
-	TypeRegister() = default;
-	TypeRegister(const TypeRegister&) = delete;
-	TypeRegister& operator=(const TypeRegister&) = delete;
+	TypeLibrary() = default;
+	TypeLibrary(const TypeLibrary&) = delete;
+	TypeLibrary& operator=(const TypeLibrary&) = delete;
+
+	/// This function initiates the registration of all types.
+	/// Once finished, the reflection system is ready to be used.
+	void doRegisteration();
 
 	/// Drains all the missing types coming form the other type register.
-	void obtainTypesFrom(TypeRegister& other);
+	/// Used when multiple binaries need to keep track of the same types.
+	void obtainTypesFrom(TypeLibrary& other);
 
 	template <class T>
 	TypeDesc& addType(const char* const typeName) {
@@ -514,39 +482,38 @@ struct TypeRegister {
 	const TypeDesc* find(const TypeId id) const;
 	const TypeDesc* findByName(const char* const) const;
 
-	void callRegisterTypesFunctions();
-	const std::map<TypeId, TypeDesc>& getAllTypes() const {
+	const std::unordered_map<TypeId, TypeDesc>& getAllTypes() const {
 		return types;
 	}
 
 	int getPluginID() const {
 		return pluginID;
 	}
+
 	void setPluginID(int id) {
 		pluginID = id;
 	}
 
   private:
+	std::unordered_map<TypeId, TypeDesc> types;
+	std::vector<void (*)()> functionsToBeCalledThatWillRegisterTypes;
 	int pluginID = 0;
-
-	std::set<void (*)()> functionsToBeCalledThatWillRegisterTypes;
-	std::map<TypeId, TypeDesc> types;
 };
 
-int addFunctionThatDefinesTypesToTypeRegister(void (*fnPtr)());
+int addFunctionThatDefinesTypesToTypeLibrary(void (*fnPtr)());
 
 ///-------------------------------------------------------------------------------------------
-/// A set of helper macros, used do create the reflection for a type.
+/// A set of helper macros, used to create type definitions (TypeDesc).
 ///-------------------------------------------------------------------------------------------
 
 /// Starts a definition of a type.
-#define ReflAddType(T) getTypeRegister().addType<T>(#T)
+#define ReflAddType(T) typeLib().addType<T>(#T)
 
 #define ReflInherits(T, TParent) .inherits<T, TParent>()
 
 /// Adds a reflection describing a member-variable which will have automatically
 /// generate get and get functions
-#define ReflMemberRaw(T, memberName, member) .addMember<T, decltype(T::member), &T::member>(memberName)
+#define ReflMemberRaw(T, memberName, member) .addMemberRaw<T, decltype(T::member), &T::member>(memberName)
 
 /// Adds a reflection describing a member-variable which will be read
 /// with the provided getter, no setting available.
@@ -563,22 +530,27 @@ int addFunctionThatDefinesTypesToTypeRegister(void (*fnPtr)());
 ///-------------------------------------------------------------------------------------------
 /// A set of macros that enable the user to declare reflection inside a header
 /// or a cpp file. The registration will happen when
-/// TypeRegister::callRegisterTypesFunctions() is called.
+/// TypeLibrary::doRegisteration() is called.
 ///-------------------------------------------------------------------------------------------
 #define ReflRegisterBlock(comment) ReflRegisterBlock_Impl(SGE_ANONYMOUS(_SGE_REFL_ANON__FUNC))
 
-#define ReflRegisterBlock_Impl(fnName)                                                                     \
-	static void fnName();                                                                                  \
-	static int SGE_ANONYMOUS(fnNameRegisterVariable) = addFunctionThatDefinesTypesToTypeRegister(&fnName); \
+#define ReflRegisterBlock_Impl(fnName)                                                                    \
+	static void fnName();                                                                                 \
+	static int SGE_ANONYMOUS(fnNameRegisterVariable) = addFunctionThatDefinesTypesToTypeLibrary(&fnName); \
 	static void fnName()
 
 ///-------------------------------------------------------------------------------------------
 /// Member chain.
-/// TODO this won't work with realoadable dlls as when reloading, the previous
+/// TODO:
+/// this won't work with realoadable dlls as when reloading, the previous
 /// pointers will get invalidated. Which will break the UNDO/REDO which is based
 /// on this reflection. As a workaround we can delete the histroy or not use
-/// MemberDesc pointers but something else.
+/// MemberDesc pointers but something else:
+/// for example name+typeid+index, to ensure that this is the same member.
 ///-------------------------------------------------------------------------------------------
+
+struct MemberAccessor;
+
 struct MemberChain {
 	struct Knot {
 		Knot(const MemberDesc* const md = nullptr, const int arrayIndex = -1)
@@ -600,4 +572,48 @@ struct MemberChain {
 
   private:
 	std::vector<Knot> knots;
+};
+
+/// MemberAccessor provides a convinent and typesafe method for acessing values from a MemberDesc.
+struct MemberAccessor {
+	const MemberDesc* md;
+	void* properlyCastedOwner;
+
+	MemberAccessor(const MemberDesc* const md = nullptr, void* const properlyCastedOwner = nullptr)
+	    : md(md)
+	    , properlyCastedOwner(properlyCastedOwner) {
+	}
+
+	bool canRead() const {
+		bool result = properlyCastedOwner != nullptr && md != nullptr && md->canRead();
+		return result;
+	}
+
+	bool canWrite() const {
+		bool result = properlyCastedOwner != nullptr && md != nullptr && md->canWrite();
+		return result;
+	}
+
+	template <typename T>
+	std::optional<T> get() const {
+		if (canRead() && md->typeId == sgeTypeId(T)) {
+			T result;
+			md->callGetterNoCast(properlyCastedOwner, &result);
+			return std::move(result);
+		}
+
+		assert(false);
+		return std::nullopt;
+	}
+
+	template <typename T>
+	bool set(const T& value) const {
+		if (canWrite() && sgeTypeId(T) == md->typeId) {
+			md->callSetterNoCast(properlyCastedOwner, &value);
+			return true;
+		}
+
+		assert(false);
+		return false;
+	}
 };

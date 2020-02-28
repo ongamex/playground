@@ -102,6 +102,9 @@ int main(int argc, char* argv[]) {
 	typeLib().setPluginID(1);
 	typeLib().performRegistration();
 
+
+	const TypeDesc* tdSlib =  typeLib().find(sgeTypeId(SLibType));
+
 	auto& r = typeLib();
 
 	EvenBiggerContainer c;

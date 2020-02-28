@@ -58,10 +58,11 @@ struct hash<TypeId> {
 template <typename T>
 TypeId sgeTypeIdFn();
 
-/// Don't use in header definition it will bloat the cpps with useless
-/// stuff.
-//#define DefineTypeIdInline(T, _id) \
-//  template <> inline TypeId sgeTypeIdFn<T>() { return TypeId(_id); }
+/// Don't use in header definition it will bloat the cpps unless you need
+/// to use id same id in different libraries (dlls/so and so on) where
+/// the function specialization isn't acessible.
+#define DefineTypeIdInline(T, _id) \
+  template <> inline TypeId sgeTypeIdFn<T>() { return TypeId(_id); }
 
 #define DefineTypeId(T, _id)  \
 	template <>               \
@@ -255,15 +256,7 @@ struct TypeDesc {
 
 	/// Retrieves the i-th member desc of the type. This includes the members
 	/// of the parent types.
-	/// @param[in] rootObject a pointer to the root object that is later going to
-	/// be cased to the correct type so member get/set functions could be called.
-	///                       ignored if nullptr.
-	/// @param[in] iMember the index of the member to be obtained. goes form 0 to
-	/// numMembers().
-	/// @param[out] outMemberDesc will contain the description of the requested
-	/// member.
-	/// @result rootObject casted to the correct type, enabling calling get/set to
-	/// be vaild.
+	/// @param[in] iMember the index of the member to be retrieved, for invalid indices returns nullptr.
 	const MemberDesc* getMember(const int iMember) const;
 
 	/// Finds the 1st member with the specified name.
